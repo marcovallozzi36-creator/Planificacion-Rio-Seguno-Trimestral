@@ -1,0 +1,1749 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>📊 Planificación 3 meses · SKU & Líneas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- XLSX para leer / generar Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Firebase (compat, funciona bien en HTML estático local) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    *{
+      box-sizing:border-box;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    }
+    body{
+      margin:0;
+      background:#e5e7eb;
+      color:#111827;
+      display:flex;
+      flex-direction:column;
+      min-height:100vh;
+    }
+    header{
+      padding:.75rem 1rem;
+      border-bottom:1px solid #e5e7eb;
+      background:#ffffff;
+      display:flex;
+      flex-wrap:wrap;
+      gap:.25rem;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      box-shadow:0 3px 10px rgba(15,23,42,.06);
+      position:sticky;
+      top:0;
+      z-index:20;
+    }
+    h1{
+      margin:0;
+      font-size:1.1rem;
+      display:flex;
+      gap:.4rem;
+      align-items:center;
+      justify-content:center;
+    }
+    small{
+      opacity:.8;
+      font-size:.75rem;
+      display:block;
+      text-align:center;
+      margin-top:.15rem;
+    }
+    main{
+      width:100%;
+      max-width:100%;
+      margin:0;
+      padding:.75rem .75rem 1.1rem;
+    }
+
+    label{
+      font-size:.78rem;
+      opacity:.9;
+    }
+    input,select,button{
+      padding:.32rem .55rem;
+      border-radius:.5rem;
+      border:1px solid #9ca3af;
+      background:#f9fafb;
+      color:#111827;
+      font-size:.78rem;
+    }
+    select{
+      cursor:pointer;
+    }
+    select:focus, input:focus{
+      outline:none;
+      box-shadow:0 0 0 2px rgba(59,130,246,.45);
+      border-color:#2563eb;
+      background:#ffffff;
+    }
+    input[type="file"]{
+      padding:.15rem;
+      background:transparent;
+      border:none;
+    }
+    button{
+      cursor:pointer;
+      border:none;
+      background:#16a34a;
+      color:#ecfdf5;
+      font-weight:600;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:.25rem;
+      border-radius:999px;
+      padding:.4rem .9rem;
+      transition:transform .06s ease, box-shadow .06s ease, background .1s ease;
+      box-shadow:0 2px 6px rgba(22,163,74,.25);
+      white-space:nowrap;
+      font-size:.78rem;
+    }
+    button:hover:not(:disabled){
+      transform:translateY(-1px);
+      box-shadow:0 4px 10px rgba(22,163,74,.28);
+    }
+    button.secondary{
+      background:#e5e7eb;
+      color:#111827;
+      box-shadow:0 2px 6px rgba(148,163,184,.25);
+    }
+    button.secondary:hover:not(:disabled){
+      box-shadow:0 4px 10px rgba(148,163,184,.35);
+    }
+    button.danger{
+      background:#ef4444;
+      color:#fef2f2;
+      box-shadow:0 2px 6px rgba(248,113,113,.35);
+    }
+    button.danger:hover:not(:disabled){
+      box-shadow:0 4px 10px rgba(248,113,113,.45);
+    }
+    button:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+      box-shadow:none;
+      transform:none;
+    }
+
+    .row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:.7rem;
+      align-items:flex-end;
+      margin-bottom:.7rem;
+    }
+    .field{
+      display:flex;
+      flex-direction:column;
+      gap:.15rem;
+    }
+
+    /* TABS */
+    .tabs{
+      display:flex;
+      gap:.6rem;
+      margin-bottom:.9rem;
+      flex-wrap:wrap;
+      justify-content:center;
+    }
+    .tab-btn{
+      padding:.45rem 1.1rem;
+      border-radius:999px;
+      border:1px solid #cbd5f5;
+      background:#ffffff;
+      font-size:.8rem;
+      cursor:pointer;
+      display:flex;
+      gap:.35rem;
+      align-items:center;
+      justify-content:center;
+      transition:background .12s ease, color .12s ease, box-shadow .12s ease, border-color .12s ease, transform .06s ease;
+      box-shadow:0 1px 4px rgba(15,23,42,.08);
+      color:#111827;
+    }
+    .tab-btn.active{
+      background:#16a34a;
+      color:#ffffff;
+      border-color:#16a34a;
+      box-shadow:0 3px 8px rgba(22,163,74,.3);
+    }
+    .tab-btn:hover{
+      transform:translateY(-1px);
+    }
+
+    /* CARDS */
+    .card{
+      background:#ffffff;
+      border:1px solid #e5e7eb;
+      border-radius:.9rem;
+      padding:1rem 1rem .9rem;
+      margin-bottom:.75rem;
+      box-shadow:0 6px 16px rgba(15,23,42,.08);
+    }
+    .card h2{
+      margin:0 0 .7rem;
+      font-size:.98rem;
+      display:flex;
+      gap:.4rem;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+    }
+
+    /* TABLAS */
+    .table-wrap{
+      overflow:auto;
+      border-radius:.8rem;
+      border:1px solid #e5e7eb;
+      background:#f9fafb;
+      margin-top:.35rem;
+    }
+
+    /* tabla principal: altura casi pantalla completa */
+    #tab-plan .table-wrap{
+      max-height:calc(100vh - 260px);
+    }
+
+    table{
+      border-collapse:collapse;
+      width:100%;
+      font-size:.70rem;
+      min-width:900px;
+    }
+    th,td{
+      border:1px solid #e5e7eb;
+      padding:.2rem .35rem;
+      white-space:nowrap;
+      background:#ffffff;
+      vertical-align:middle;
+    }
+    th{
+      background:#f1f5f9;
+      font-weight:600;
+      text-align:center;
+      color:#0f172a;
+    }
+    td{
+      text-align:right;
+      color:#111827;
+    }
+    th.sticky-top{
+      position:sticky;
+      top:0;
+      z-index:3;
+    }
+    th.sticky-left,
+    td.sticky-left{
+      position:sticky;
+      left:0;
+      background:#f9fafb;
+      z-index:4;
+      text-align:left;
+    }
+    th.sticky-left-2,
+    td.sticky-left-2{
+      position:sticky;
+      left:80px;
+      background:#f9fafb;
+      z-index:4;
+      text-align:left;
+    }
+
+    tr:nth-child(even) td{
+      background:#f9fafb;
+    }
+    tr:nth-child(odd) td{
+      background:#ffffff;
+    }
+    tr:hover td:not(.line-header-cell):not(.line-subtotal-cell){
+      background:#dbeafe;
+    }
+
+    input.cell-input{
+      width:100%;
+      border-radius:.35rem;
+      border:1px solid #cbd5e1;
+      background:#ffffff;
+      color:#111827;
+      padding:.12rem .2rem;
+      font-size:.68rem;
+      text-align:right;
+    }
+    input.cell-input[readonly]{
+      background:#f3f4f6;
+    }
+
+    .total-cell{
+      font-weight:700;
+      background:#dcfce7;
+    }
+    .total-cell-empty{
+      background:#ffffff;
+    }
+
+    .line-header-row td{
+      background:#fee2e2 !important;
+      font-weight:700;
+    }
+    .line-header-row td.turnos-disponibles-cell{
+      background:#fef9c3 !important;
+    }
+    .linea-balance.ok{
+      color:#16a34a;
+      text-align:center;
+    }
+    .linea-balance.over{
+      color:#b91c1c;
+      text-align:center;
+    }
+
+    .line-subtotal-row td{
+      background:#e0f2fe !important;
+      font-weight:700;
+    }
+
+    /* stock alerts */
+    .stock-cell.stock-negative{
+      background:#fee2e2 !important;
+      color:#b91c1c;
+      font-weight:600;
+    }
+    .stock-cell.stock-low{
+      background:#fef9c3 !important;
+      color:#92400e;
+      font-weight:600;
+    }
+
+    /* KPI cards */
+    .kpi-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:.7rem;
+      margin:.4rem 0 .9rem;
+      justify-content:center;
+    }
+    .kpi-card{
+      flex:1 1 190px;
+      max-width:260px;
+      background:#f9fafb;
+      border-radius:.9rem;
+      padding:.55rem .75rem;
+      border:1px solid #e5e7eb;
+      display:flex;
+      flex-direction:column;
+      gap:.18rem;
+      box-shadow:0 4px 10px rgba(148,163,184,.25);
+      color:#0f172a;
+    }
+    .kpi-label{
+      font-size:.72rem;
+      opacity:.9;
+      display:flex;
+      align-items:center;
+      gap:.25rem;
+      justify-content:flex-start;
+    }
+    .kpi-value{
+      font-size:1.05rem;
+      font-weight:700;
+      text-align:left;
+    }
+    .kpi-sub{
+      font-size:.68rem;
+      opacity:.75;
+      text-align:left;
+    }
+    .kpi-card.ok{
+      background:#ecfdf5;
+      border-color:#bbf7d0;
+    }
+    .kpi-card.warn{
+      background:#fefce8;
+      border-color:#facc15;
+    }
+    .kpi-card.danger{
+      background:#fef2f2;
+      border-color:#fecaca;
+    }
+
+    /* botones mini por SKU (marcar/comentar) */
+    .mini-btn{
+      border:none;
+      background:#e5e7eb;
+      border-radius:.4rem;
+      padding:.05rem .3rem;
+      cursor:pointer;
+      font-size:.65rem;
+    }
+    .mini-btn.sku-note-btn.has-comment{
+      background:#0ea5e9;
+      color:#f0f9ff;
+    }
+    .sku-row-marked td{
+      background:#fef3c7 !important;
+    }
+
+    #comentarios-list{
+      margin-top:.4rem;
+      font-size:.7rem;
+      text-align:left;
+    }
+
+    @media (max-width:700px){
+      header{
+        padding:.7rem .6rem;
+      }
+      main{
+        padding:.7rem .45rem 1rem;
+      }
+      .card{
+        padding:.85rem .8rem;
+      }
+      table{
+        min-width:800px;
+      }
+    }
+
+    /* ================== MODO IMPRESIÓN ================== */
+    @media print{
+      @page{
+        size:A4 landscape;
+        margin:8mm;
+      }
+      body{
+        background:#ffffff;
+      }
+      header,
+      .tabs,
+      .no-print,
+      .mini-btn{
+        display:none !important;
+      }
+      main{
+        max-width:none;
+        margin:0;
+        padding:0;
+      }
+      .card{
+        box-shadow:none;
+        border:none;
+        border-radius:0;
+        padding:0;
+        margin:0;
+      }
+      .table-wrap{
+        max-height:none !important;
+        overflow:visible;
+        border:none;
+      }
+      table{
+        font-size:10px;
+        min-width:0;
+      }
+      th,td{
+        padding:2px 3px;
+      }
+      th.sticky-top,
+      th.sticky-left,
+      th.sticky-left-2,
+      td.sticky-left,
+      td.sticky-left-2{
+        position:static !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="no-print">
+    <div>
+      <h1>📊🏭 Planificación 3 meses por SKU & Línea</h1>
+      <small>SKU en filas · agrupados por línea · PTO / PLAN / STOCK / TURNOS · todo a la vista</small>
+    </div>
+  </header>
+
+  <main>
+    <!-- TABS -->
+    <div class="tabs no-print">
+      <button class="tab-btn" data-tab="lineas">🧵 Líneas de producción</button>
+      <button class="tab-btn" data-tab="productos">🧾 Productos</button>
+      <button class="tab-btn active" data-tab="plan">📆 Planificación 3 meses</button>
+      <button class="tab-btn" data-tab="reportes">📈 Reportes</button>
+    </div>
+
+    <!-- ============ TAB LÍNEAS ============ -->
+    <section id="tab-lineas" class="card no-print" style="display:none;">
+      <h2>🧵 Alta y gestión de líneas de producción</h2>
+
+      <div class="row">
+        <div class="field">
+          <label for="l-nombre">Nombre de línea</label>
+          <input id="l-nombre" placeholder="Ej: CARAMELOS BLANDOS" />
+        </div>
+        <button id="btn-add-linea">➕ Agregar línea</button>
+      </div>
+
+      <div class="table-wrap" style="max-height:260px;">
+        <table>
+          <thead>
+          <tr>
+            <th class="sticky-top sticky-left">Línea</th>
+            <th class="sticky-top">Acciones</th>
+          </tr>
+          </thead>
+          <tbody id="tbody-lineas"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ TAB PRODUCTOS ============ -->
+    <section id="tab-productos" class="card no-print" style="display:none;">
+      <h2>🧾 Maestro de productos</h2>
+
+      <div class="row">
+        <div class="field">
+          <label for="p-codigo">Código</label>
+          <input id="p-codigo" placeholder="Ej: 273" />
+        </div>
+        <div class="field" style="flex:1;">
+          <label for="p-desc">Descripción</label>
+          <input id="p-desc" placeholder="Ej: FLYNN PAFF TUTTI" />
+        </div>
+        <div class="field">
+          <label for="p-linea">Línea (buscar por nombre)</label>
+          <input list="list-lineas" id="p-linea" placeholder="Seleccioná o escribí..." />
+          <datalist id="list-lineas"></datalist>
+        </div>
+        <div class="field">
+          <label for="p-kg">Kg x caja</label>
+          <input id="p-kg" type="number" step="0.01" />
+        </div>
+        <div class="field">
+          <label for="p-cjs">Cajas x turno</label>
+          <input id="p-cjs" type="number" />
+        </div>
+        <button id="btn-add-prod">➕ Agregar SKU</button>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>📥 Importar maestro desde Excel (.xlsx)</label>
+          <input type="file" id="file-excel" accept=".xlsx,.xls" />
+          <small style="opacity:.75;font-size:.7rem;">
+            Columnas: <b>CODIGO, DESCRIPCION, KG_X_CJA, CJS_X_TURNO</b> (opcional: LINEA)
+          </small>
+        </div>
+        <button class="secondary" id="btn-clear-prod">🧹 Vaciar maestro y datos</button>
+      </div>
+
+      <div class="table-wrap" style="max-height:360px;">
+        <table>
+          <thead>
+          <tr>
+            <th class="sticky-top sticky-left">Código</th>
+            <th class="sticky-top sticky-left-2">Descripción</th>
+            <th class="sticky-top">Línea</th>
+            <th class="sticky-top">Kg/caja</th>
+            <th class="sticky-top">Cjs/turno</th>
+            <th class="sticky-top">Acciones</th>
+          </tr>
+          </thead>
+          <tbody id="tbody-prod"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ TAB PLAN ============ -->
+    <section id="tab-plan" class="card">
+      <h2>📆 Planificación 3 meses · vista por línea & SKU</h2>
+
+      <!-- KPI -->
+      <div class="kpi-row">
+        <div class="kpi-card" id="kpi-card-pto">
+          <div class="kpi-label">📦 PTO 3 meses (cajas)</div>
+          <div class="kpi-value" id="kpi-pto">0</div>
+          <div class="kpi-sub" id="kpi-pto-sub"></div>
+        </div>
+        <div class="kpi-card" id="kpi-card-plan">
+          <div class="kpi-label">🏭 Plan 3 meses (cajas)</div>
+          <div class="kpi-value" id="kpi-plan">0</div>
+          <div class="kpi-sub" id="kpi-plan-sub"></div>
+        </div>
+        <div class="kpi-card" id="kpi-card-turnos">
+          <div class="kpi-label">⏱ Turnos usados / habilitados</div>
+          <div class="kpi-value" id="kpi-turnos">–</div>
+          <div class="kpi-sub" id="kpi-turnos-sub"></div>
+        </div>
+        <div class="kpi-card" id="kpi-card-stock">
+          <div class="kpi-label">📦 Stock fin proyectado mes 3</div>
+          <div class="kpi-value" id="kpi-stock">0</div>
+          <div class="kpi-sub" id="kpi-stock-sub"></div>
+        </div>
+      </div>
+
+      <div class="row no-print">
+        <div class="field">
+          <label for="f-anio">Año</label>
+          <input id="f-anio" type="number" />
+        </div>
+        <div class="field">
+          <label for="f-mes-inicio">Mes inicial (ventana 3 meses)</label>
+          <select id="f-mes-inicio">
+            <option value="1">Enero</option>
+            <option value="2">Febrero</option>
+            <option value="3">Marzo</option>
+            <option value="4">Abril</option>
+            <option value="5">Mayo</option>
+            <option value="6">Junio</option>
+            <option value="7">Julio</option>
+            <option value="8">Agosto</option>
+            <option value="9">Septiembre</option>
+            <option value="10">Octubre</option>
+            <option value="11">Noviembre</option>
+            <option value="12">Diciembre</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-linea">Filtrar línea</label>
+          <select id="f-linea"></select>
+        </div>
+        <button id="btn-aplicar" class="secondary">🔄 Actualizar vista</button>
+        <button id="btn-guardar">💾 Guardar (local + Firebase)</button>
+        <button id="btn-export" class="secondary">📤 Exportar vista a Excel</button>
+      </div>
+
+      <div class="table-wrap">
+        <table id="tabla-plan"></table>
+      </div>
+
+      <div id="comentarios-list"></div>
+    </section>
+
+    <!-- ============ TAB REPORTES ============ -->
+    <section id="tab-reportes" class="card" style="display:none;">
+      <h2>📈 Reportes por línea · cajas & toneladas</h2>
+      <p class="no-print" style="font-size:.72rem;opacity:.8;margin-top:0;margin-bottom:.4rem;text-align:center;">
+        Ventana de 3 meses según Año + Mes inicial seleccionados en la pestaña de planificación.
+      </p>
+      <div class="table-wrap">
+        <table id="tabla-reportes"></table>
+      </div>
+
+      <h3 style="font-size:.85rem;margin:.8rem 0 .3rem;text-align:center;">📅 Resumen anual por línea (PTO / Plan · cajas & tn)</h3>
+      <div class="table-wrap">
+        <table id="tabla-reportes-anual"></table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ------------------ FIREBASE INIT (compat) ------------------ //
+    const firebaseConfig = {
+      apiKey: "AIzaSyCElhjBq_8WxvQt7DTqTJ9mvIWY0B6LIBI",
+      authDomain: "plantrimrio2.firebaseapp.com",
+      projectId: "plantrimrio2",
+      storageBucket: "plantrimrio2.firebasestorage.app",
+      messagingSenderId: "697072792520",
+      appId: "1:697072792520:web:ba0b81ca49c351ae3fc6fd"
+    };
+
+    let db = null;
+    let firebaseEnabled = true;
+
+    try{
+      const app = firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+    }catch(e){
+      console.error("Error inicializando Firebase:", e);
+      firebaseEnabled = false;
+    }
+
+    // ------------------ LÓGICA APP ------------------ //
+    const COLLECTION = "planificacion";
+    const DOC_ID     = "planner_general";
+
+    const STORAGE_KEY = "plan_sku_lineas_v1";
+    const MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+    let state = {
+      lineas: [],
+      productos: [],
+      datos: [],
+      lineaTurnos: [],
+      skuNotas: [],
+      skuMarcados: []
+    };
+
+    let saveTimer = null;
+
+    function escapeHtml(str){
+      return String(str || "").replace(/[&<>"']/g, function(s){
+        return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[s];
+      });
+    }
+
+    // -------- Firebase helpers -------- //
+    async function loadStateFromFirebase(initial){
+      if(!firebaseEnabled || !db) return;
+      try{
+        const ref = db.collection(COLLECTION).doc(DOC_ID);
+        const snap = await ref.get();
+        if(snap.exists){
+          const data = snap.data() || {};
+          state = {
+            lineas: data.lineas || [],
+            productos: data.productos || [],
+            datos: data.datos || [],
+            lineaTurnos: data.lineaTurnos || [],
+            skuNotas: data.skuNotas || [],
+            skuMarcados: data.skuMarcados || []
+          };
+          try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(_){}
+          renderLineasHelpers();
+          renderLineas();
+          renderProductos();
+          renderPlan();
+          if(!initial) alert("✅ Datos sincronizados desde Firebase.");
+        }else{
+          if(!initial) alert("No hay datos en Firebase todavía.");
+        }
+      }catch(err){
+        console.error("Error leyendo Firebase:", err);
+        firebaseEnabled = false;
+        if(!initial) alert("Error al leer de Firebase. Se seguirá usando solo localStorage.");
+      }
+    }
+
+    async function saveStateToFirebase(){
+      if(!firebaseEnabled || !db) return;
+      try{
+        const ref = db.collection(COLLECTION).doc(DOC_ID);
+        await ref.set(state, { merge:true });
+      }catch(err){
+        console.error("Error guardando en Firebase:", err);
+        firebaseEnabled = false;
+      }
+    }
+
+    function queueSaveFirebase(){
+      if(!firebaseEnabled) return;
+      if(saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveStateToFirebase, 800);
+    }
+
+    // -------- LocalStorage -------- //
+    function loadStateLocal(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(raw) state = JSON.parse(raw);
+      }catch(e){}
+      if(!state.lineas) state.lineas = [];
+      if(!state.productos) state.productos = [];
+      if(!state.datos) state.datos = [];
+      if(!state.lineaTurnos) state.lineaTurnos = [];
+      if(!state.skuNotas) state.skuNotas = [];
+      if(!state.skuMarcados) state.skuMarcados = [];
+    }
+    function saveState(){
+      try{
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }catch(e){}
+      queueSaveFirebase();
+    }
+
+    // ---------- TABS ---------- //
+    document.addEventListener("click", function(e){
+      const btn = e.target.closest(".tab-btn");
+      if(!btn) return;
+      document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      const tab = btn.getAttribute("data-tab");
+      document.getElementById("tab-lineas").style.display    = tab==="lineas" ? "block":"none";
+      document.getElementById("tab-productos").style.display = tab==="productos" ? "block":"none";
+      document.getElementById("tab-plan").style.display      = tab==="plan" ? "block":"none";
+      document.getElementById("tab-reportes").style.display  = tab==="reportes" ? "block":"none";
+    });
+
+    // ---------- LÍNEAS ---------- //
+    const tbodyLineas = document.getElementById("tbody-lineas");
+    const datalistLineas = document.getElementById("list-lineas");
+    const selLineaPlan = document.getElementById("f-linea");
+
+    function lineasTotales(){
+      const set = new Set(state.lineas || []);
+      (state.productos || []).forEach(function(p){
+        if(p.linea && p.linea.trim()!=="") set.add(p.linea.trim());
+      });
+      return Array.from(set).sort();
+    }
+
+    function renderLineas(){
+      tbodyLineas.innerHTML = "";
+      const lineas = (state.lineas || []).slice().sort(function(a,b){return a.localeCompare(b);});
+      if(lineas.length===0){
+        const tr = document.createElement("tr");
+        tr.innerHTML = '<td class="sticky-left" colspan="2" style="text-align:left;">⚠️ No hay líneas cargadas.</td>';
+        tbodyLineas.appendChild(tr);
+      }else{
+        lineas.forEach(function(nombre,idx){
+          const tr = document.createElement("tr");
+          tr.innerHTML = ''
+            + '<td class="sticky-left" style="text-align:left;">'
+            + '  <input class="cell-input" data-idx="'+idx+'" value="'+escapeHtml(nombre)+'" style="text-align:left;">'
+            + '</td>'
+            + '<td><button class="danger" data-del-linea="'+idx+'">🗑</button></td>';
+          tbodyLineas.appendChild(tr);
+        });
+      }
+    }
+
+    document.getElementById("btn-add-linea").addEventListener("click", function(){
+      const nombre = document.getElementById("l-nombre").value.trim();
+      if(!nombre){
+        alert("Escribí el nombre de la línea.");
+        return;
+      }
+      if((state.lineas || []).includes(nombre)){
+        alert("Esa línea ya existe.");
+        return;
+      }
+      state.lineas.push(nombre);
+      document.getElementById("l-nombre").value = "";
+      saveState();
+      renderLineasHelpers();
+      renderLineas();
+    });
+
+    tbodyLineas.addEventListener("change", function(e){
+      const inp = e.target.closest("input.cell-input");
+      if(!inp) return;
+      const idx = Number(inp.getAttribute("data-idx"));
+      const val = inp.value.trim();
+      if(!val){
+        alert("El nombre de la línea no puede quedar vacío.");
+        renderLineas();
+        return;
+      }
+      state.lineas[idx] = val;
+      saveState();
+      renderLineasHelpers();
+      renderProductos();
+      renderPlan();
+    });
+
+    tbodyLineas.addEventListener("click", function(e){
+      const btn = e.target.closest("button[data-del-linea]");
+      if(!btn) return;
+      const idx = Number(btn.getAttribute("data-del-linea"));
+      const nombre = state.lineas[idx];
+      if(!confirm('¿Eliminar la línea "'+nombre+'"?')) return;
+      state.lineas.splice(idx,1);
+      saveState();
+      renderLineasHelpers();
+      renderLineas();
+      renderProductos();
+      renderPlan();
+    });
+
+    function renderLineasHelpers(){
+      datalistLineas.innerHTML = "";
+      lineasTotales().forEach(function(l){
+        const opt = document.createElement("option");
+        opt.value = l;
+        datalistLineas.appendChild(opt);
+      });
+
+      selLineaPlan.innerHTML = "";
+      const optAll = document.createElement("option");
+      optAll.value = "";
+      optAll.textContent = "Todas las líneas";
+      selLineaPlan.appendChild(optAll);
+      lineasTotales().forEach(function(l){
+        const o = document.createElement("option");
+        o.value = l;
+        o.textContent = l;
+        selLineaPlan.appendChild(o);
+      });
+    }
+
+    // ---------- PRODUCTOS ---------- //
+    const tbodyProd = document.getElementById("tbody-prod");
+
+    function renderProductos(){
+      tbodyProd.innerHTML = "";
+      if((state.productos || []).length===0){
+        const tr = document.createElement("tr");
+        tr.innerHTML = '<td class="sticky-left" colspan="6" style="text-align:left;">⚠️ No hay productos. Cargá manualmente o importá un Excel.</td>';
+        tbodyProd.appendChild(tr);
+        return;
+      }
+
+      state.productos.sort(function(a,b){
+        const la = (a.linea || "").localeCompare(b.linea || "");
+        if(la!==0) return la;
+        return String(a.codigo).localeCompare(String(b.codigo));
+      });
+
+      state.productos.forEach(function(p,idx){
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          '<td class="sticky-left" style="text-align:left;">'
+          + '<input class="cell-input prod-field" data-field="codigo" data-idx="'+idx+'" value="'+escapeHtml(p.codigo)+'" style="text-align:left;">'
+          + '</td>'
+          + '<td class="sticky-left-2" style="text-align:left;">'
+          + '<input class="cell-input prod-field" data-field="descripcion" data-idx="'+idx+'" value="'+escapeHtml(p.descripcion)+'" style="text-align:left;">'
+          + '</td>'
+          + '<td style="text-align:left;">'
+          + '<input list="list-lineas" class="cell-input prod-field" data-field="linea" data-idx="'+idx+'" value="'+escapeHtml(p.linea || "")+'" style="text-align:left;">'
+          + '</td>'
+          + '<td><input class="cell-input prod-field" type="number" step="0.01" data-field="kg_caja" data-idx="'+idx+'" value="'+(p.kg_caja ?? "")+'"></td>'
+          + '<td><input class="cell-input prod-field" type="number" data-field="cjs_turno" data-idx="'+idx+'" value="'+(p.cjs_turno ?? "")+'"></td>'
+          + '<td><button class="danger" data-del-prod="'+idx+'">🗑</button></td>';
+        tbodyProd.appendChild(tr);
+      });
+    }
+
+    document.getElementById("btn-add-prod").addEventListener("click", function(){
+      const codigo = document.getElementById("p-codigo").value.trim();
+      const desc   = document.getElementById("p-desc").value.trim();
+      const linea  = document.getElementById("p-linea").value.trim();
+      const kg     = document.getElementById("p-kg").value.trim();
+      const cjs    = document.getElementById("p-cjs").value.trim();
+
+      if(!codigo || !desc){
+        alert("Completá al menos código y descripción.");
+        return;
+      }
+      if((state.productos || []).some(function(p){return p.codigo===codigo;})){
+        alert("Ya existe un SKU con ese código.");
+        return;
+      }
+
+      state.productos.push({
+        codigo: codigo,
+        descripcion: desc,
+        linea: linea,
+        kg_caja: kg===""?null:Number(kg),
+        cjs_turno: cjs===""?null:Number(cjs)
+      });
+
+      document.getElementById("p-codigo").value="";
+      document.getElementById("p-desc").value="";
+      document.getElementById("p-linea").value="";
+      document.getElementById("p-kg").value="";
+      document.getElementById("p-cjs").value="";
+
+      saveState();
+      renderProductos();
+      renderLineasHelpers();
+      renderPlan();
+    });
+
+    tbodyProd.addEventListener("change", function(e){
+      const inp = e.target.closest("input.prod-field");
+      if(!inp) return;
+      const idx = Number(inp.getAttribute("data-idx"));
+      const field = inp.getAttribute("data-field");
+      let val = inp.value;
+      if(field==="kg_caja" || field==="cjs_turno"){
+        val = (val==="" ? null : Number(val));
+      }
+      state.productos[idx][field] = val;
+      saveState();
+      renderLineasHelpers();
+      renderPlan();
+    });
+
+    tbodyProd.addEventListener("click", function(e){
+      const btn = e.target.closest("button[data-del-prod]");
+      if(!btn) return;
+      const idx = Number(btn.getAttribute("data-del-prod"));
+      const codigo = state.productos[idx].codigo;
+      if(!confirm("¿Eliminar el SKU "+codigo+"?")) return;
+      state.productos.splice(idx,1);
+      state.datos = state.datos.filter(function(d){return d.codigo_producto!==codigo;});
+      state.skuNotas = state.skuNotas.filter(function(n){return n.codigo!==codigo;});
+      state.skuMarcados = state.skuMarcados.filter(function(c){return c!==codigo;});
+      saveState();
+      renderProductos();
+      renderPlan();
+    });
+
+    document.getElementById("btn-clear-prod").addEventListener("click", function(){
+      if(!confirm("⚠️ Esto borra productos y datos de planificación. ¿Seguro?")) return;
+      state.productos = [];
+      state.datos = [];
+      state.skuNotas = [];
+      state.skuMarcados = [];
+      saveState();
+      renderProductos();
+      renderPlan();
+    });
+
+    document.getElementById("file-excel").addEventListener("change", function(e){
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev){
+        const data = new Uint8Array(ev.target.result);
+        const wb = XLSX.read(data,{type:"array"});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet,{defval:""});
+        let agregados = 0;
+        (rows || []).forEach(function(r){
+          const codigo = String(r.CODIGO || "").trim();
+          const desc   = String(r.DESCRIPCION || "").trim();
+          const kg     = r.KG_X_CJA === "" ? null : Number(r.KG_X_CJA);
+          const cjs    = r.CJS_X_TURNO === "" ? null : Number(r.CJS_X_TURNO);
+          const linea  = String(r.LINEA || "").trim();
+          if(!codigo || !desc) return;
+          if((state.productos || []).some(function(p){return p.codigo===codigo;})) return;
+          state.productos.push({codigo:codigo, descripcion:desc, linea:linea, kg_caja:kg, cjs_turno:cjs});
+          if(linea && !(state.lineas || []).includes(linea)) state.lineas.push(linea);
+          agregados++;
+        });
+        saveState();
+        alert("Importación completa. SKUs nuevos: "+agregados);
+        renderLineasHelpers();
+        renderLineas();
+        renderProductos();
+        renderPlan();
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // ---------- PLAN & REPORTES ---------- //
+    const tablaPlan = document.getElementById("tabla-plan");
+    const tablaReportes = document.getElementById("tabla-reportes");
+    const tablaReportesAnual = document.getElementById("tabla-reportes-anual");
+
+    let currentYear = (new Date()).getFullYear();
+    let ventanaMeses = [1,2,3];
+
+    document.getElementById("f-anio").value = currentYear;
+    document.getElementById("f-mes-inicio").value = ventanaMeses[0];
+
+    document.getElementById("btn-aplicar").addEventListener("click", function(){
+      const a = Number(document.getElementById("f-anio").value) || currentYear;
+      let m = Number(document.getElementById("f-mes-inicio").value) || 1;
+      if(m>10){m=10;document.getElementById("f-mes-inicio").value=10;}
+      currentYear = a;
+      ventanaMeses = [m,m+1,m+2];
+      renderPlan();
+    });
+
+    document.getElementById("btn-guardar").addEventListener("click", function(){
+      saveState();
+      alert("✅ Datos guardados localmente y enviados a Firebase (si está disponible).");
+    });
+
+    document.getElementById("btn-export").addEventListener("click", exportarExcel);
+
+    function getDato(codigo, anio, mes){
+      let d = (state.datos || []).find(function(x){
+        return x.codigo_producto===codigo && x.anio===anio && x.mes===mes;
+      });
+      if(!d){
+        d = {codigo_producto:codigo, anio:anio, mes:mes, stock_inicial:null, presupuesto:null, plan:null, turnos:null};
+        state.datos.push(d);
+      }
+      return d;
+    }
+
+    function getLineaTurnos(linea, anio, mes){
+      let r = (state.lineaTurnos || []).find(function(x){
+        return x.linea===linea && x.anio===anio && x.mes===mes;
+      });
+      if(!r){
+        r = {linea:linea, anio:anio, mes:mes, turnos_disponibles:null};
+        state.lineaTurnos.push(r);
+      }
+      return r;
+    }
+
+    function findSkuNota(codigo){
+      return (state.skuNotas || []).find(function(n){
+        return n.codigo===codigo;
+      });
+    }
+
+    function renderComentariosList(){
+      const cont=document.getElementById("comentarios-list");
+      if(!cont) return;
+      cont.innerHTML = ""; // ya no mostramos comentarios de línea/mes
+    }
+
+    function renderPlan(){
+      if((state.productos || []).length===0){
+        tablaPlan.innerHTML = '<thead><tr><th>⚠️ No hay productos en el maestro.</th></tr></thead>';
+        renderComentariosList();
+        renderReportes();
+        return;
+      }
+
+      const lineaFiltro = selLineaPlan.value || "";
+
+      const productosFiltrados = state.productos
+        .filter(function(p){return !lineaFiltro || (p.linea || "").trim()===lineaFiltro;})
+        .slice()
+        .sort(function(a,b){
+          const la = (a.linea || "").localeCompare(b.linea || "");
+          if(la!==0) return la;
+          return String(a.codigo).localeCompare(String(b.codigo));
+        });
+
+      if(productosFiltrados.length===0){
+        tablaPlan.innerHTML = '<thead><tr><th>Sin productos para la línea seleccionada.</th></tr></thead>';
+        renderComentariosList();
+        renderReportes();
+        return;
+      }
+
+      const m1 = ventanaMeses[0], m2=ventanaMeses[1], m3=ventanaMeses[2];
+      const nom1 = MESES[m1], nom2 = MESES[m2], nom3 = MESES[m3];
+
+      let thead = ''
+        + '<thead>'
+        + '<tr>'
+        + '<th class="sticky-top sticky-left" rowspan="2">Código</th>'
+        + '<th class="sticky-top sticky-left-2" rowspan="2">Descripción</th>'
+        + '<th class="sticky-top" rowspan="2">Kg/caja</th>'
+        + '<th class="sticky-top" rowspan="2">Cjs/turno</th>'
+        + '<th class="sticky-top" colspan="4">📦 Presupuesto (PTO)</th>'
+        + '<th class="sticky-top" colspan="4">🏭 Plan (producción)</th>'
+        + '<th class="sticky-top" colspan="4">📦 Stock fin</th>'
+        + '<th class="sticky-top" colspan="4">⏱ Turnos (auto)</th>'
+        + '</tr>'
+        + '<tr>'
+        + '<th class="sticky-top">'+nom1+'</th>'
+        + '<th class="sticky-top">'+nom2+'</th>'
+        + '<th class="sticky-top">'+nom3+'</th>'
+        + '<th class="sticky-top">Total</th>'
+        + '<th class="sticky-top">'+nom1+'</th>'
+        + '<th class="sticky-top">'+nom2+'</th>'
+        + '<th class="sticky-top">'+nom3+'</th>'
+        + '<th class="sticky-top">Total</th>'
+        + '<th class="sticky-top">Inicial</th>'
+        + '<th class="sticky-top">'+nom1+'</th>'
+        + '<th class="sticky-top">'+nom2+'</th>'
+        + '<th class="sticky-top">'+nom3+'</th>'
+        + '<th class="sticky-top">'+nom1+'</th>'
+        + '<th class="sticky-top">'+nom2+'</th>'
+        + '<th class="sticky-top">'+nom3+'</th>'
+        + '<th class="sticky-top">Balance</th>'
+        + '</tr>'
+        + '</thead>';
+
+      let body = "<tbody>";
+
+      const grupos = {};
+      productosFiltrados.forEach(function(p){
+        const linea = (p.linea || "SIN LÍNEA").trim() || "SIN LÍNEA";
+        if(!grupos[linea]) grupos[linea] = [];
+        grupos[linea].push(p);
+      });
+
+      Object.keys(grupos).sort().forEach(function(linea){
+        const g = grupos[linea];
+
+        const tL1 = getLineaTurnos(linea,currentYear,m1);
+        const tL2 = getLineaTurnos(linea,currentYear,m2);
+        const tL3 = getLineaTurnos(linea,currentYear,m3);
+
+        body += ''
+          + '<tr class="line-header-row" data-linea="'+escapeHtml(linea)+'">'
+          + '<td class="sticky-left line-header-cell" style="text-align:left;">Línea: '+escapeHtml(linea)+'</td>'
+          + '<td class="sticky-left-2 line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td>'
+          + '<td class="turnos-disponibles-cell">'
+          + '    <input class="cell-input linea-turnos" data-mes="'+m1+'" value="'+(tL1.turnos_disponibles ?? "")+'">'
+          + '</td>'
+          + '<td class="turnos-disponibles-cell">'
+          + '    <input class="cell-input linea-turnos" data-mes="'+m2+'" value="'+(tL2.turnos_disponibles ?? "")+'">'
+          + '</td>'
+          + '<td class="turnos-disponibles-cell">'
+          + '    <input class="cell-input linea-turnos" data-mes="'+m3+'" value="'+(tL3.turnos_disponibles ?? "")+'">'
+          + '</td>'
+          + '<td class="turnos-disponibles-cell linea-balance"></td>'
+          + '</tr>';
+
+        g.forEach(function(p){
+          const d1 = getDato(p.codigo,currentYear,m1);
+          const d2 = getDato(p.codigo,currentYear,m2);
+          const d3 = getDato(p.codigo,currentYear,m3);
+
+          const isMarked = (state.skuMarcados || []).includes(p.codigo);
+          const skuNota = findSkuNota(p.codigo);
+          const noteTitle = skuNota && skuNota.texto ? escapeHtml(skuNota.texto) : "Comentario SKU";
+          const noteClass = skuNota && skuNota.texto ? " has-comment" : "";
+
+          body += ''
+            + '<tr data-codigo="'+escapeHtml(p.codigo)+'" data-linea="'+escapeHtml(linea)+'" class="'+(isMarked?'sku-row-marked':'')+'">'
+            + '<td class="sticky-left" style="text-align:left;">'
+            + '  <div style="display:flex;align-items:center;gap:.25rem;">'
+            + '    <span class="sku-code">'+escapeHtml(p.codigo)+'</span>'
+            + '    <button class="mini-btn sku-mark-btn no-print" data-codigo="'+escapeHtml(p.codigo)+'" title="Marcar / desmarcar SKU">⭐</button>'
+            + '    <button class="mini-btn sku-note-btn no-print'+noteClass+'" data-codigo="'+escapeHtml(p.codigo)+'" title="'+noteTitle+'">📝</button>'
+            + '  </div>'
+            + '</td>'
+            + '<td class="sticky-left-2" style="text-align:left;">'+escapeHtml(p.descripcion)+'</td>'
+            + '<td>'+(p.kg_caja ?? "")+'</td>'
+            + '<td>'+(p.cjs_turno ?? "")+'</td>'
+            + '<td><input class="cell-input plan-cell" data-field="presupuesto" data-mes="'+m1+'" value="'+(d1.presupuesto ?? "")+'"></td>'
+            + '<td><input class="cell-input plan-cell" data-field="presupuesto" data-mes="'+m2+'" value="'+(d2.presupuesto ?? "")+'"></td>'
+            + '<td><input class="cell-input plan-cell" data-field="presupuesto" data-mes="'+m3+'" value="'+(d3.presupuesto ?? "")+'"></td>'
+            + '<td class="total-ppto total-cell-empty"></td>'
+            + '<td><input class="cell-input plan-cell" data-field="plan" data-mes="'+m1+'" value="'+(d1.plan ?? "")+'"></td>'
+            + '<td><input class="cell-input plan-cell" data-field="plan" data-mes="'+m2+'" value="'+(d2.plan ?? "")+'"></td>'
+            + '<td><input class="cell-input plan-cell" data-field="plan" data-mes="'+m3+'" value="'+(d3.plan ?? "")+'"></td>'
+            + '<td class="total-plan total-cell-empty"></td>'
+            + '<td><input class="cell-input plan-cell" data-field="stock_inicial" data-mes="'+m1+'" value="'+(d1.stock_inicial ?? "")+'"></td>'
+            + '<td class="sf1 stock-cell"></td>'
+            + '<td class="sf2 stock-cell"></td>'
+            + '<td class="sf3 stock-cell"></td>'
+            + '<td class="turno1"></td>'
+            + '<td class="turno2"></td>'
+            + '<td class="turno3"></td>'
+            + '<td class="total-turnos total-cell-empty"></td>'
+            + '</tr>';
+        });
+
+        body += ''
+          + '<tr class="line-subtotal-row" data-linea="'+escapeHtml(linea)+'">'
+          + '<td class="sticky-left" style="text-align:left;">Subtotal '+escapeHtml(linea)+'</td>'
+          + '<td class="sticky-left-2"></td>'
+          + '<td></td><td></td>'
+          + '<td class="sub-ppto1 total-cell-empty"></td>'
+          + '<td class="sub-ppto2 total-cell-empty"></td>'
+          + '<td class="sub-ppto3 total-cell-empty"></td>'
+          + '<td class="sub-ppto-total total-cell-empty"></td>'
+          + '<td class="sub-plan1 total-cell-empty"></td>'
+          + '<td class="sub-plan2 total-cell-empty"></td>'
+          + '<td class="sub-plan3 total-cell-empty"></td>'
+          + '<td class="sub-plan-total total-cell-empty"></td>'
+          + '<td></td><td></td><td></td><td></td>'
+          + '<td class="sub-tur1 total-cell-empty"></td>'
+          + '<td class="sub-tur2 total-cell-empty"></td>'
+          + '<td class="sub-tur3 total-cell-empty"></td>'
+          + '<td class="sub-tur-total total-cell-empty"></td>'
+          + '</tr>';
+      });
+
+      body += "</tbody>";
+      tablaPlan.innerHTML = thead + body;
+
+      tablaPlan.addEventListener("change", onPlanChangeHandler, {once:false});
+      tablaPlan.addEventListener("click", onPlanClickHandler, {once:false});
+
+      recalcularTodo();
+      renderComentariosList();
+    }
+
+    function onPlanChangeHandler(e){
+      const inp = e.target;
+      if(inp.classList.contains("linea-turnos")){
+        const tr = inp.closest("tr.line-header-row");
+        if(!tr) return;
+        const linea = tr.getAttribute("data-linea");
+        const mes = Number(inp.getAttribute("data-mes"));
+        let val = inp.value;
+        if(val==="") val=null; else val = Number(val);
+        const r = getLineaTurnos(linea,currentYear,mes);
+        r.turnos_disponibles = val;
+        recalcularTodo();
+        return;
+      }
+      if(inp.classList.contains("plan-cell")){
+        const tr = inp.closest("tr[data-codigo]");
+        if(!tr) return;
+        const codigo = tr.getAttribute("data-codigo");
+        const field  = inp.getAttribute("data-field");
+        const mes    = Number(inp.getAttribute("data-mes"));
+        let val = inp.value;
+        if(val==="") val=null; else val = Number(val);
+        const d = getDato(codigo,currentYear,mes);
+        d[field] = val;
+        recalcularTodo();
+      }
+    }
+
+    function onPlanClickHandler(e){
+      const btnMark = e.target.closest(".sku-mark-btn");
+      if(btnMark){
+        const codigo = btnMark.getAttribute("data-codigo");
+        if(!state.skuMarcados) state.skuMarcados = [];
+        const idx = state.skuMarcados.indexOf(codigo);
+        if(idx>=0) state.skuMarcados.splice(idx,1);
+        else state.skuMarcados.push(codigo);
+        saveState();
+        renderPlan();
+        return;
+      }
+
+      const btnNote = e.target.closest(".sku-note-btn");
+      if(btnNote){
+        const codigo = btnNote.getAttribute("data-codigo");
+        const nota = findSkuNota(codigo);
+        const actual = nota && nota.texto || "";
+        const nuevo = prompt("Comentario para SKU "+codigo, actual);
+        if(nuevo===null) return;
+        if(!nuevo.trim()){
+          if(nota){
+            state.skuNotas = state.skuNotas.filter(function(n){return n.codigo!==codigo;});
+          }
+        }else{
+          if(nota){
+            nota.texto = nuevo.trim();
+          }else{
+            state.skuNotas.push({codigo:codigo, texto:nuevo.trim()});
+          }
+        }
+        saveState();
+        renderPlan();
+        return;
+      }
+    }
+
+    function marcarStock(td, valor, presupuestoMes){
+      td.classList.remove("stock-negative","stock-low");
+      td.textContent = (valor || valor===0) ? valor.toLocaleString("es-AR") : "";
+      if(valor===null || valor===undefined) return;
+      if(valor < 0){
+        td.classList.add("stock-negative");
+      }else{
+        const umbral = (presupuestoMes || 0) * 0.2;
+        if(umbral > 0 && valor <= umbral){
+          td.classList.add("stock-low");
+        }
+      }
+    }
+
+    function updateKpis(totalPpto,totalPlan,totalTurnos,totalTurnosDisp,totalStockM3){
+      const cardT = document.getElementById("kpi-card-turnos");
+      const fmt0 = function(n){return n ? n.toLocaleString("es-AR",{maximumFractionDigits:0}) : "0";};
+      const fmt1 = function(n){return n ? n.toLocaleString("es-AR",{maximumFractionDigits:1}) : "0.0";};
+
+      document.getElementById("kpi-pto").textContent = fmt0(totalPpto);
+      document.getElementById("kpi-plan").textContent = fmt0(totalPlan);
+      document.getElementById("kpi-stock").textContent = fmt0(totalStockM3);
+
+      document.getElementById("kpi-pto-sub").textContent = totalPpto ? "Total PTO 3 meses (cajas)" : "";
+      document.getElementById("kpi-plan-sub").textContent = totalPlan ? "Total plan 3 meses (cajas)" : "";
+      document.getElementById("kpi-stock-sub").textContent = totalStockM3 ? ("Suma stock fin "+MESES[ventanaMeses[2]]) : "";
+
+      cardT.classList.remove("ok","warn","danger");
+      if(totalTurnosDisp<=0 && totalTurnos<=0){
+        document.getElementById("kpi-turnos").textContent = "–";
+        document.getElementById("kpi-turnos-sub").textContent = "Sin turnos cargados";
+      }else{
+        const ratio = totalTurnos / (totalTurnosDisp || 1);
+        const pct = ratio*100;
+        document.getElementById("kpi-turnos").textContent = fmt1(totalTurnos)+" / "+fmt1(totalTurnosDisp);
+        document.getElementById("kpi-turnos-sub").textContent = pct.toFixed(1)+"% de uso";
+        if(pct < 90) cardT.classList.add("ok");
+        else if(pct <= 100) cardT.classList.add("warn");
+        else cardT.classList.add("danger");
+      }
+    }
+
+    function recalcularTodo(){
+      const m1=ventanaMeses[0],m2=ventanaMeses[1],m3=ventanaMeses[2];
+      const tbody = tablaPlan.querySelector("tbody");
+      if(!tbody){
+        renderReportes();
+        return;
+      }
+
+      const acumLinea = {};
+      let totalPpto=0,totalPlan=0,totalTurnos=0,totalTurnosDisp=0,totalStockM3=0;
+
+      tbody.querySelectorAll("tr[data-codigo]").forEach(function(tr){
+        const codigo = tr.getAttribute("data-codigo");
+        const linea  = tr.getAttribute("data-linea");
+        const prod   = (state.productos || []).find(function(p){return p.codigo===codigo;}) || {};
+        const cjsTurno = prod.cjs_turno || 0;
+
+        const d1 = getDato(codigo,currentYear,m1);
+        const d2 = getDato(codigo,currentYear,m2);
+        const d3 = getDato(codigo,currentYear,m3);
+
+        const tPpto = (d1.presupuesto||0)+(d2.presupuesto||0)+(d3.presupuesto||0);
+        const cP = tr.querySelector(".total-ppto");
+        cP.textContent = tPpto ? tPpto.toLocaleString("es-AR") : "";
+        cP.className = "total-ppto "+(tPpto?"total-cell":"total-cell-empty");
+
+        const tPlan = (d1.plan||0)+(d2.plan||0)+(d3.plan||0);
+        const cPl = tr.querySelector(".total-plan");
+        cPl.textContent = tPlan ? tPlan.toLocaleString("es-AR") : "";
+        cPl.className = "total-plan "+(tPlan?"total-cell":"total-cell-empty");
+
+        totalPpto += tPpto;
+        totalPlan += tPlan;
+
+        const si1 = d1.stock_inicial || 0;
+        const sf1 = si1 + (d1.plan||0) - (d1.presupuesto||0);
+        const sf2 = sf1 + (d2.plan||0) - (d2.presupuesto||0);
+        const sf3 = sf2 + (d3.plan||0) - (d3.presupuesto||0);
+
+        d2.stock_inicial = sf1;
+        d3.stock_inicial = sf2;
+
+        marcarStock(tr.querySelector(".sf1"), sf1, d1.presupuesto);
+        marcarStock(tr.querySelector(".sf2"), sf2, d2.presupuesto);
+        marcarStock(tr.querySelector(".sf3"), sf3, d3.presupuesto);
+
+        totalStockM3 += sf3;
+
+        let t1=0,t2=0,t3=0,totalT=0;
+        if(cjsTurno>0){
+          t1 = (d1.plan||0)/cjsTurno;
+          t2 = (d2.plan||0)/cjsTurno;
+          t3 = (d3.plan||0)/cjsTurno;
+          totalT = t1+t2+t3;
+          d1.turnos = t1;
+          d2.turnos = t2;
+          d3.turnos = t3;
+        }
+        tr.querySelector(".turno1").textContent = t1 ? t1.toFixed(2) : "";
+        tr.querySelector(".turno2").textContent = t2 ? t2.toFixed(2) : "";
+        tr.querySelector(".turno3").textContent = t3 ? t3.toFixed(2) : "";
+
+        const cT = tr.querySelector(".total-turnos");
+        cT.textContent = totalT ? totalT.toFixed(2) : "";
+        cT.className = "total-turnos "+(totalT?"total-cell":"total-cell-empty");
+
+        totalTurnos += totalT;
+
+        if(!acumLinea[linea]){
+          acumLinea[linea] = {p1:0,p2:0,p3:0,pl1:0,pl2:0,pl3:0,t1:0,t2:0,t3:0};
+        }
+        const a = acumLinea[linea];
+        a.p1  += (d1.presupuesto||0);
+        a.p2  += (d2.presupuesto||0);
+        a.p3  += (d3.presupuesto||0);
+        a.pl1 += (d1.plan||0);
+        a.pl2 += (d2.plan||0);
+        a.pl3 += (d3.plan||0);
+        a.t1  += t1;
+        a.t2  += t2;
+        a.t3  += t3;
+      });
+
+      tbody.querySelectorAll("tr.line-header-row").forEach(function(hr){
+        const linea = hr.getAttribute("data-linea");
+        const info = acumLinea[linea] || {t1:0,t2:0,t3:0};
+        const inputs = hr.querySelectorAll("input.linea-turnos");
+        const disp1 = Number(inputs[0].value)||0;
+        const disp2 = Number(inputs[1].value)||0;
+        const disp3 = Number(inputs[2].value)||0;
+        const totalDisp = disp1+disp2+disp3;
+        const totalUsed = info.t1+info.t2+info.t3;
+        const diff = totalDisp - totalUsed;
+
+        totalTurnosDisp += totalDisp;
+
+        const cellBalance = hr.querySelector(".linea-balance");
+        cellBalance.classList.remove("ok","over");
+
+        if(totalDisp===0 && totalUsed===0){
+          cellBalance.textContent = "";
+        }else if(diff>=0){
+          cellBalance.textContent = "✅ OK · +"+diff.toFixed(2)+" turnos libres";
+          cellBalance.classList.add("ok");
+        }else{
+          const falta = Math.abs(diff);
+          cellBalance.textContent = "⚠ Excedido · faltan "+falta.toFixed(2)+" turnos";
+          cellBalance.classList.add("over");
+        }
+      });
+
+      tbody.querySelectorAll("tr.line-subtotal-row").forEach(function(sr){
+        const linea = sr.getAttribute("data-linea");
+        const info = acumLinea[linea] || {p1:0,p2:0,p3:0,pl1:0,pl2:0,pl3:0,t1:0,t2:0,t3:0};
+
+        const p1=info.p1||0, p2=info.p2||0, p3=info.p3||0;
+        const pl1=info.pl1||0, pl2=info.pl2||0, pl3=info.pl3||0;
+        const t1=info.t1||0, t2=info.t2||0, t3=info.t3||0;
+
+        const pTotal = p1+p2+p3;
+        const plTotal = pl1+pl2+pl3;
+        const tTotal = t1+t2+t3;
+
+        function setCell(cls,val){
+          const c = sr.querySelector("."+cls);
+          if(!c) return;
+          c.textContent = val ? val.toLocaleString("es-AR",{maximumFractionDigits:2}) : "";
+          c.className = cls+" "+(val ? "total-cell" : "total-cell-empty");
+        }
+
+        setCell("sub-ppto1",p1);
+        setCell("sub-ppto2",p2);
+        setCell("sub-ppto3",p3);
+        setCell("sub-ppto-total",pTotal);
+
+        setCell("sub-plan1",pl1);
+        setCell("sub-plan2",pl2);
+        setCell("sub-plan3",pl3);
+        setCell("sub-plan-total",plTotal);
+
+        setCell("sub-tur1",t1);
+        setCell("sub-tur2",t2);
+        setCell("sub-tur3",t3);
+        setCell("sub-tur-total",tTotal);
+      });
+
+      updateKpis(totalPpto,totalPlan,totalTurnos,totalTurnosDisp,totalStockM3);
+
+      saveState();
+      renderReportes();
+    }
+
+    function exportarExcel(){
+      recalcularTodo();
+      const aoa = [];
+      const rows = tablaPlan.querySelectorAll("tr");
+      if(rows.length===0){
+        alert("No hay datos para exportar.");
+        return;
+      }
+      rows.forEach(function(tr){
+        const row = [];
+        tr.querySelectorAll("th,td").forEach(function(cell){
+          row.push((cell.innerText || "").trim());
+        });
+        aoa.push(row);
+      });
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, "Plan_3M");
+      const m1 = ventanaMeses[0], m3 = ventanaMeses[2];
+      const filename = "plan_"+currentYear+"_"+m1+"-"+m3+".xlsx";
+      XLSX.writeFile(wb, filename);
+    }
+
+    // --------- REPORTES (3 meses + anual) ---------- //
+    function renderReportes(){
+      renderReportesTrimestral();
+      renderReportesAnual();
+    }
+
+    function renderReportesTrimestral(){
+      if(!tablaReportes) return;
+
+      if((state.productos || []).length===0){
+        tablaReportes.innerHTML = '<thead><tr><th>⚠️ No hay productos cargados.</th></tr></thead>';
+        return;
+      }
+      const m1=ventanaMeses[0],m2=ventanaMeses[1],m3=ventanaMeses[2];
+      const nom1=MESES[m1],nom2=MESES[m2],nom3=MESES[m3];
+
+      const grupos = {};
+      (state.productos || []).forEach(function(p){
+        const linea = (p.linea || "SIN LÍNEA").trim() || "SIN LÍNEA";
+        const kgCaja = p.kg_caja || 0;
+        if(!grupos[linea]){
+          grupos[linea] = {
+            ptoCjs:[0,0,0],
+            planCjs:[0,0,0],
+            ptoTn:[0,0,0],
+            planTn:[0,0,0]
+          };
+        }
+        const g = grupos[linea];
+        const d1 = getDato(p.codigo,currentYear,m1);
+        const d2 = getDato(p.codigo,currentYear,m2);
+        const d3 = getDato(p.codigo,currentYear,m3);
+        const pres = [d1.presupuesto||0,d2.presupuesto||0,d3.presupuesto||0];
+        const plan = [d1.plan||0,d2.plan||0,d3.plan||0];
+        for(var i=0;i<3;i++){
+          g.ptoCjs[i]+=pres[i];
+          g.planCjs[i]+=plan[i];
+          const presKg = pres[i]*kgCaja;
+          const planKg = plan[i]*kgCaja;
+          g.ptoTn[i]+=presKg/1000;
+          g.planTn[i]+=planKg/1000;
+        }
+      });
+
+      const thead = ''
+        + '<thead>'
+        + '<tr>'
+        + '<th rowspan="2">Línea</th>'
+        + '<th colspan="5">📦 PTO (cajas / tn)</th>'
+        + '<th colspan="5">🏭 Plan (cajas / tn)</th>'
+        + '</tr>'
+        + '<tr>'
+        + '<th>'+nom1+' (cjs)</th>'
+        + '<th>'+nom2+' (cjs)</th>'
+        + '<th>'+nom3+' (cjs)</th>'
+        + '<th>Total (cjs)</th>'
+        + '<th>Total (tn)</th>'
+        + '<th>'+nom1+' (cjs)</th>'
+        + '<th>'+nom2+' (cjs)</th>'
+        + '<th>'+nom3+' (cjs)</th>'
+        + '<th>Total (cjs)</th>'
+        + '<th>Total (tn)</th>'
+        + '</tr>'
+        + '</thead>';
+
+      let body="<tbody>";
+      let totPtoCjs=[0,0,0], totPlanCjs=[0,0,0], totPtoTn=0, totPlanTn=0;
+
+      Object.keys(grupos).sort().forEach(function(linea){
+        const g = grupos[linea];
+        const ptoTotCjs = g.ptoCjs[0]+g.ptoCjs[1]+g.ptoCjs[2];
+        const planTotCjs = g.planCjs[0]+g.planCjs[1]+g.planCjs[2];
+        const ptoTotTn = g.ptoTn[0]+g.ptoTn[1]+g.ptoTn[2];
+        const planTotTn = g.planTn[0]+g.planTn[1]+g.planTn[2];
+
+        for(var i=0;i<3;i++){
+          totPtoCjs[i]+=g.ptoCjs[i];
+          totPlanCjs[i]+=g.planCjs[i];
+        }
+        totPtoTn += ptoTotTn;
+        totPlanTn+= planTotTn;
+
+        body += ''
+          + '<tr>'
+          + '<td style="text-align:left;">'+escapeHtml(linea)+'</td>'
+          + '<td>'+(g.ptoCjs[0] ? g.ptoCjs[0].toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(g.ptoCjs[1] ? g.ptoCjs[1].toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(g.ptoCjs[2] ? g.ptoCjs[2].toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(ptoTotCjs ? ptoTotCjs.toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(ptoTotTn ? ptoTotTn.toLocaleString("es-AR",{maximumFractionDigits:2}) : "")+'</td>'
+          + '<td>'+(g.planCjs[0] ? g.planCjs[0].toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(g.planCjs[1] ? g.planCjs[1].toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(g.planCjs[2] ? g.planCjs[2].toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(planTotCjs ? planTotCjs.toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(planTotTn ? planTotTn.toLocaleString("es-AR",{maximumFractionDigits:2}) : "")+'</td>'
+          + '</tr>';
+      });
+
+      const totPtoCjsTotal = totPtoCjs[0]+totPtoCjs[1]+totPtoCjs[2];
+      const totPlanCjsTotal= totPlanCjs[0]+totPlanCjs[1]+totPlanCjs[2];
+
+      body += ''
+        + '<tr style="font-weight:700;background:#e5e7eb;">'
+        + '<td style="text-align:left;">TOTAL PLANTA</td>'
+        + '<td>'+(totPtoCjs[0] ? totPtoCjs[0].toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPtoCjs[1] ? totPtoCjs[1].toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPtoCjs[2] ? totPtoCjs[2].toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPtoCjsTotal ? totPtoCjsTotal.toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPtoTn ? totPtoTn.toLocaleString("es-AR",{maximumFractionDigits:2}) : "")+'</td>'
+        + '<td>'+(totPlanCjs[0] ? totPlanCjs[0].toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPlanCjs[1] ? totPlanCjs[1].toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPlanCjs[2] ? totPlanCjs[2].toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPlanCjsTotal ? totPlanCjsTotal.toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPlanTn ? totPlanTn.toLocaleString("es-AR",{maximumFractionDigits:2}) : "")+'</td>'
+        + '</tr>';
+
+      body += "</tbody>";
+      tablaReportes.innerHTML = thead + body;
+    }
+
+    function renderReportesAnual(){
+      if(!tablaReportesAnual) return;
+
+      if((state.productos || []).length===0){
+        tablaReportesAnual.innerHTML = '<thead><tr><th>⚠️ No hay productos cargados.</th></tr></thead>';
+        return;
+      }
+
+      const grupos = {};
+      (state.productos || []).forEach(function(p){
+        const linea = (p.linea || "SIN LÍNEA").trim() || "SIN LÍNEA";
+        const kgCaja = p.kg_caja || 0;
+        if(!grupos[linea]){
+          grupos[linea] = {ptoCjs:0, planCjs:0, ptoTn:0, planTn:0};
+        }
+        const g = grupos[linea];
+        for(let mes=1; mes<=12; mes++){
+          const d = (state.datos || []).find(function(x){
+            return x.codigo_producto===p.codigo && x.anio===currentYear && x.mes===mes;
+          });
+          if(!d) continue;
+          const pres = d.presupuesto||0;
+          const plan = d.plan||0;
+          g.ptoCjs += pres;
+          g.planCjs += plan;
+          g.ptoTn  += (pres*kgCaja)/1000;
+          g.planTn += (plan*kgCaja)/1000;
+        }
+      });
+
+      const thead = ''
+        + '<thead>'
+        + '<tr>'
+        + '<th>Línea</th>'
+        + '<th>📦 PTO anual (cjs)</th>'
+        + '<th>📦 PTO anual (tn)</th>'
+        + '<th>🏭 Plan anual (cjs)</th>'
+        + '<th>🏭 Plan anual (tn)</th>'
+        + '</tr>'
+        + '</thead>';
+
+      let body = "<tbody>";
+      let totPtoCjs=0, totPlanCjs=0, totPtoTn=0, totPlanTn=0;
+
+      Object.keys(grupos).sort().forEach(function(linea){
+        const g = grupos[linea];
+        totPtoCjs += g.ptoCjs;
+        totPlanCjs+= g.planCjs;
+        totPtoTn  += g.ptoTn;
+        totPlanTn += g.planTn;
+
+        body += ''
+          + '<tr>'
+          + '<td style="text-align:left;">'+escapeHtml(linea)+'</td>'
+          + '<td>'+(g.ptoCjs ? g.ptoCjs.toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(g.ptoTn ? g.ptoTn.toLocaleString("es-AR",{maximumFractionDigits:2}) : "")+'</td>'
+          + '<td>'+(g.planCjs ? g.planCjs.toLocaleString("es-AR") : "")+'</td>'
+          + '<td>'+(g.planTn ? g.planTn.toLocaleString("es-AR",{maximumFractionDigits:2}) : "")+'</td>'
+          + '</tr>';
+      });
+
+      body += ''
+        + '<tr style="font-weight:700;background:#e5e7eb;">'
+        + '<td style="text-align:left;">TOTAL PLANTA</td>'
+        + '<td>'+(totPtoCjs ? totPtoCjs.toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPtoTn ? totPtoTn.toLocaleString("es-AR",{maximumFractionDigits:2}) : "")+'</td>'
+        + '<td>'+(totPlanCjs ? totPlanCjs.toLocaleString("es-AR") : "")+'</td>'
+        + '<td>'+(totPlanTn ? totPlanTn.toLocaleString("es-AR",{maximumFractionDigits:2}) : "")+'</td>'
+        + '</tr>';
+
+      body += "</tbody>";
+      tablaReportesAnual.innerHTML = thead + body;
+    }
+
+    // -------- INIT -------- //
+    loadStateLocal();
+    if(!document.getElementById("f-anio").value){
+      document.getElementById("f-anio").value = currentYear;
+    }
+    renderLineasHelpers();
+    renderLineas();
+    renderProductos();
+    renderPlan();
+    loadStateFromFirebase(true);
+  </script>
+</body>
+</html>
