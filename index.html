@@ -246,11 +246,13 @@
       background:#f9fafb;
       z-index:4;
       text-align:left;
+      min-width:110px;   /* espacio para código + iconos */
+      max-width:120px;
     }
     th.sticky-left-2,
     td.sticky-left-2{
       position:sticky;
-      left:80px;
+      left:120px;        /* se alinea con el ancho anterior */
       background:#f9fafb;
       z-index:4;
       text-align:left;
@@ -268,13 +270,18 @@
 
     input.cell-input{
       width:100%;
-      border-radius:.35rem;
+      border-radius:.3rem;
       border:1px solid #cbd5e1;
       background:#ffffff;
       color:#111827;
-      padding:.12rem .2rem;
-      font-size:.68rem;
+      padding:.06rem .16rem;
+      font-size:.62rem;
       text-align:right;
+      font-variant-numeric:tabular-nums;
+    }
+    /* que las celdas de PTO/PLAN/STOCK se adapten a los dígitos */
+    #tabla-plan input.cell-input[data-field]{
+      min-width:7ch;
     }
     input.cell-input[readonly]{
       background:#f3f4f6;
@@ -295,6 +302,10 @@
     .line-header-row td.turnos-disponibles-cell{
       background:#fef9c3 !important;
     }
+    .linea-balance{
+      font-size:.7rem;
+      line-height:1.25;
+    }
     .linea-balance.ok{
       color:#16a34a;
       text-align:center;
@@ -302,6 +313,12 @@
     .linea-balance.over{
       color:#b91c1c;
       text-align:center;
+    }
+    .linea-neg{
+      display:block;
+      font-size:.63rem;
+      opacity:.85;
+      margin-top:2px;
     }
 
     .line-subtotal-row td{
@@ -1076,7 +1093,7 @@
     function renderComentariosList(){
       const cont=document.getElementById("comentarios-list");
       if(!cont) return;
-      cont.innerHTML = ""; // ya no mostramos comentarios de línea/mes
+      cont.innerHTML = "";
     }
 
     function renderPlan(){
@@ -1158,7 +1175,7 @@
 
         body += ''
           + '<tr class="line-header-row" data-linea="'+escapeHtml(linea)+'">'
-          + '<td class="sticky-left line-header-cell" style="text-align:left;">Línea: '+escapeHtml(linea)+'</td>'
+          + '<td class="sticky-left line-header-cell" style="text-align:left;">'+escapeHtml(linea)+'</td>'
           + '<td class="sticky-left-2 line-header-cell"></td>'
           + '<td class="line-header-cell"></td>'
           + '<td class="line-header-cell"></td>'
@@ -1434,9 +1451,10 @@
         totalTurnos += totalT;
 
         if(!acumLinea[linea]){
-          acumLinea[linea] = {p1:0,p2:0,p3:0,pl1:0,pl2:0,pl3:0,t1:0,t2:0,t3:0};
+          acumLinea[linea] = {p1:0,p2:0,p3:0,pl1:0,pl2:0,pl3:0,t1:0,t2:0,t3:0,extra1:0,extra2:0,extra3:0};
         }
         const a = acumLinea[linea];
+
         a.p1  += (d1.presupuesto||0);
         a.p2  += (d2.presupuesto||0);
         a.p3  += (d3.presupuesto||0);
@@ -1446,11 +1464,18 @@
         a.t1  += t1;
         a.t2  += t2;
         a.t3  += t3;
+
+        // turnos extra sugeridos por stock negativo en cada mes
+        if(cjsTurno>0){
+          if(sf1 < 0) a.extra1 += Math.abs(sf1) / cjsTurno;
+          if(sf2 < 0) a.extra2 += Math.abs(sf2) / cjsTurno;
+          if(sf3 < 0) a.extra3 += Math.abs(sf3) / cjsTurno;
+        }
       });
 
       tbody.querySelectorAll("tr.line-header-row").forEach(function(hr){
         const linea = hr.getAttribute("data-linea");
-        const info = acumLinea[linea] || {t1:0,t2:0,t3:0};
+        const info = acumLinea[linea] || {t1:0,t2:0,t3:0,extra1:0,extra2:0,extra3:0};
         const inputs = hr.querySelectorAll("input.linea-turnos");
         const disp1 = Number(inputs[0].value)||0;
         const disp2 = Number(inputs[1].value)||0;
@@ -1464,15 +1489,37 @@
         const cellBalance = hr.querySelector(".linea-balance");
         cellBalance.classList.remove("ok","over");
 
+        const sug1 = info.extra1 || 0;
+        const sug2 = info.extra2 || 0;
+        const sug3 = info.extra3 || 0;
+
+        let balanceText = "";
         if(totalDisp===0 && totalUsed===0){
-          cellBalance.textContent = "";
+          balanceText = "";
         }else if(diff>=0){
-          cellBalance.textContent = "✅ OK · +"+diff.toFixed(2)+" turnos libres";
+          balanceText = "✅ OK · +"+diff.toFixed(2)+" turnos libres";
           cellBalance.classList.add("ok");
         }else{
           const falta = Math.abs(diff);
-          cellBalance.textContent = "⚠ Excedido · faltan "+falta.toFixed(2)+" turnos";
+          balanceText = "⚠ Excedido · faltan "+falta.toFixed(2)+" turnos";
           cellBalance.classList.add("over");
+        }
+
+        let sugeridosText = "";
+        if(sug1 || sug2 || sug3){
+          sugeridosText =
+            "Sug: "
+            + MESES[m1].slice(0,3)+" "+sug1.toFixed(1)
+            + " · "+MESES[m2].slice(0,3)+" "+sug2.toFixed(1)
+            + " · "+MESES[m3].slice(0,3)+" "+sug3.toFixed(1);
+        }
+
+        if(balanceText || sugeridosText){
+          cellBalance.innerHTML =
+            (balanceText || "") +
+            (sugeridosText ? '<br><span class="linea-neg">'+sugeridosText+'</span>' : "");
+        }else{
+          cellBalance.innerHTML = "";
         }
       });
 
@@ -1747,4 +1794,5 @@
   </script>
 </body>
 </html>
+
 
