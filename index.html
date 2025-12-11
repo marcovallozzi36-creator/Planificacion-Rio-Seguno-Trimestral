@@ -27,8 +27,6 @@
       min-height:100vh;
     }
 
-    /* header original eliminado para ganar espacio de pantalla */
-
     main{
       width:100%;
       max-width:100%;
@@ -180,8 +178,7 @@
       margin-top:.35rem;
     }
 
-    /* tabla principal:
-       ahora con scroll propio vertical + header sticky */
+    /* tabla principal: scroll propio + sticky header */
     #tab-plan .table-wrap{
       overflow-x:auto;
       overflow-y:auto;
@@ -213,7 +210,7 @@
       color:#111827;
     }
 
-    /* headers sticky para meses / PTO / Plan / Stock / Turnos */
+    /* headers sticky */
     #tabla-plan thead th{
       position:sticky;
       top:0;
@@ -384,7 +381,7 @@
       background:#fef3c7 !important;
     }
 
-    /* texto de sugerencia por SKU */
+    /* texto sugerencia SKU */
     .sku-sugg{
       font-size:.58rem;
       color:#b91c1c;
@@ -415,15 +412,27 @@
       }
     }
 
-    /* ================== MODO IMPRESIÓN ================== */
+    /* ================== MODO IMPRESIÓN AJUSTADO A A4 ================== */
     @media print{
+      /* Página A4 horizontal */
       @page{
         size:A4 landscape;
         margin:8mm;
       }
+
+      /* Escalar todo el contenido para que quepa el ancho de A4 */
+      html, body{
+        width:297mm;
+        height:210mm;
+      }
       body{
         background:#ffffff;
+        /* Chrome respeta este zoom al imprimir → “achica” todo un poco */
+        zoom:0.75;
+        -webkit-print-color-adjust:exact;
+        print-color-adjust:exact;
       }
+
       .tabs,
       .no-print,
       .mini-btn{
@@ -441,23 +450,30 @@
         padding:0;
         margin:0;
       }
+
+      /* Que la tabla NO tenga scroll ni recortes */
       .table-wrap{
         max-height:none !important;
-        overflow:visible;
+        overflow:visible !important;
         border:none;
       }
+
       table{
-        font-size:10px;
-        min-width:0;
+        font-size:8px;       /* un toque más chico para que entren las columnas */
+        min-width:0 !important;
+        table-layout:auto;
       }
       th,td{
-        padding:2px 3px;
+        padding:1px 2px;     /* menos espacio interno para ganar ancho */
       }
+
+      /* Sacar stickies para que no rompan los cortes de página */
       th.sticky-top,
       th.sticky-left,
       th.sticky-left-2,
       td.sticky-left,
-      td.sticky-left-2{
+      td.sticky-left-2,
+      #tabla-plan thead th{
         position:static !important;
       }
     }
@@ -705,14 +721,13 @@
         console.error("Error seteando persistencia:", err);
       });
 
-      // Escucha de sesión: si hay usuario → muestra app y carga datos
+      // Escucha de sesión
       auth.onAuthStateChanged(function(user){
         if(user){
           if(loginScreen) loginScreen.style.display = "none";
           if(mainEl) mainEl.style.display = "block";
           loadStateFromFirebase(true);
         }else{
-          // Sin sesión → pedir login
           if(loginScreen) loginScreen.style.display = "flex";
           if(mainEl) mainEl.style.display = "none";
         }
@@ -720,7 +735,6 @@
     }catch(e){
       console.error("Error inicializando Firebase:", e);
       firebaseEnabled = false;
-      // Sin Firebase: dejar entrar igual pero sin guardado remoto
       if(loginScreen) loginScreen.style.display = "none";
       if(mainEl) mainEl.style.display = "block";
     }
@@ -728,7 +742,6 @@
     if(loginBtn){
       loginBtn.addEventListener("click", async function(){
         if(!auth){
-          // sin auth (offline) → simplemente entrar
           if(loginScreen) loginScreen.style.display = "none";
           if(mainEl) mainEl.style.display = "block";
           return;
@@ -743,7 +756,6 @@
         loginError.textContent = "";
         try{
           await auth.signInWithEmailAndPassword(email, pass);
-          // onAuthStateChanged se encarga del resto
         }catch(err){
           console.error("Error login:", err);
           loginError.textContent = "Usuario o contraseña incorrectos.";
@@ -752,7 +764,6 @@
         }
       });
 
-      // Enter en los inputs también dispara login
       [loginEmail, loginPass].forEach(function(inp){
         inp.addEventListener("keydown", function(e){
           if(e.key === "Enter"){
@@ -763,7 +774,6 @@
       });
     }
 
-    // Botón de cerrar sesión
     if(logoutBtn){
       logoutBtn.addEventListener("click", async function(){
         try{
@@ -778,7 +788,7 @@
       });
     }
 
-    // ------------------ LÓGICA APP ------------------ //
+    // ------------------ LÓGICA APP (igual que antes) ------------------ //
     const COLLECTION = "planificacion";
     const DOC_ID     = "planner_general";
 
@@ -793,9 +803,7 @@
       skuMarcados: []
     };
 
-    // para no bindear eventos mil veces
     let planEventsBound = false;
-
     let saveTimer = null;
 
     function escapeHtml(str){
@@ -804,7 +812,6 @@
       });
     }
 
-    // Ajusta el tamaño de letra del input según la cantidad de dígitos
     function autoFitInputFont(inp){
       const len = (inp.value || "").length;
       if(len >= 10){
@@ -818,7 +825,6 @@
       }
     }
 
-    // -------- Firebase helpers -------- //
     async function loadStateFromFirebase(initial){
       if(!firebaseEnabled || !db) return;
       try{
@@ -866,12 +872,10 @@
       saveTimer = setTimeout(saveStateToFirebase, 800);
     }
 
-    // Sólo Firebase, nada localStorage
     function saveState(){
       queueSaveFirebase();
     }
 
-    // ---------- TABS ---------- //
     document.addEventListener("click", function(e){
       const btn = e.target.closest(".tab-btn");
       if(!btn) return;
@@ -884,7 +888,6 @@
       document.getElementById("tab-reportes").style.display  = tab==="reportes" ? "block":"none";
     });
 
-    // ---------- LÍNEAS ---------- //
     const tbodyLineas = document.getElementById("tbody-lineas");
     const datalistLineas = document.getElementById("list-lineas");
     const selLineaPlan = document.getElementById("f-linea");
@@ -986,7 +989,6 @@
       });
     }
 
-    // ---------- PRODUCTOS ---------- //
     const tbodyProd = document.getElementById("tbody-prod");
 
     function renderProductos(){
@@ -1132,7 +1134,6 @@
       reader.readAsArrayBuffer(file);
     });
 
-    // ---------- PLAN & REPORTES ---------- //
     const tablaPlan = document.getElementById("tabla-plan");
     const tablaReportes = document.getElementById("tabla-reportes");
     const tablaReportesAnual = document.getElementById("tabla-reportes-anual");
@@ -1193,7 +1194,6 @@
       cont.innerHTML = "";
     }
 
-    // -------- Navegación vertical con flechas ↑ / ↓ -------- //
     function moveVerticalInput(currentInput, direction){
       const td = currentInput.closest("td");
       if(!td) return;
@@ -1402,10 +1402,8 @@
       body += "</tbody>";
       tablaPlan.innerHTML = thead + body;
 
-      // Ajustar tamaño de texto de todos los inputs según dígitos
       tablaPlan.querySelectorAll("input.cell-input").forEach(autoFitInputFont);
 
-      // Bind de eventos sólo una vez
       if(!planEventsBound){
         tablaPlan.addEventListener("change", onPlanChangeHandler);
         tablaPlan.addEventListener("click", onPlanClickHandler);
@@ -1502,8 +1500,8 @@
 
     function updateKpis(totalPpto,totalPlan,totalTurnos,totalTurnosDisp,totalStockM3){
       const cardT = document.getElementById("kpi-card-turnos");
-      const fmt0 = function(n){return n ? n.toLocaleString("es-AR",{maximumFractionDigits:0}) : "0";};
-      const fmt1 = function(n){return n ? n.toLocaleString("es-AR",{maximumFractionDigits:1}) : "0.0";};
+      const fmt0 = n => n ? n.toLocaleString("es-AR",{maximumFractionDigits:0}) : "0";
+      const fmt1 = n => n ? n.toLocaleString("es-AR",{maximumFractionDigits:1}) : "0.0";
 
       document.getElementById("kpi-pto").textContent = fmt0(totalPpto);
       document.getElementById("kpi-plan").textContent = fmt0(totalPlan);
@@ -1585,7 +1583,6 @@
 
         totalStockM3 += sf3;
 
-        // --- SUGERENCIA DE TURNOS POR SKU ---
         let extraTurnsSku = 0;
         if(cjsTurno > 0){
           const faltantes = [];
@@ -1599,7 +1596,7 @@
         }
         const skuCodeSpan = tr.querySelector(".sku-code");
         if(skuCodeSpan){
-          const skuCell = skuCodeSpan.parentElement.parentElement; // el div flex-column
+          const skuCell = skuCodeSpan.parentElement.parentElement;
           let sugEl = skuCell.querySelector(".sku-sugg");
           if(extraTurnsSku > 0.001){
             if(!sugEl){
@@ -1612,7 +1609,6 @@
             sugEl.remove();
           }
         }
-        // --------------------------------------------
 
         let t1=0,t2=0,t3=0,totalT=0;
         if(cjsTurno>0){
@@ -1716,7 +1712,6 @@
       renderReportes();
     }
 
-    // -------- EXPORTACIÓN A EXCEL -------- //
     function exportarExcel(){
       recalcularTodo();
 
@@ -1883,7 +1878,6 @@
       XLSX.writeFile(wb, filename);
     }
 
-    // --------- REPORTES (3 meses + anual) ---------- //
     function renderReportes(){
       renderReportesTrimestral();
       renderReportesAnual();
@@ -1894,7 +1888,7 @@
 
       if((state.productos || []).length===0){
         tablaReportes.innerHTML = '<thead><tr><th>⚠️ No hay productos cargados.</th></tr></thead>';
-      return;
+        return;
       }
       const m1=ventanaMeses[0],m2=ventanaMeses[1],m3=ventanaMeses[2];
       const nom1=MESES[m1],nom2=MESES[m2],nom3=MESES[m3];
@@ -2077,7 +2071,6 @@
       tablaReportesAnual.innerHTML = thead + body;
     }
 
-    // -------- INIT -------- //
     if(!document.getElementById("f-anio").value){
       document.getElementById("f-anio").value = currentYear;
     }
@@ -2085,7 +2078,6 @@
     renderLineas();
     renderProductos();
     renderPlan();
-    // Carga desde Firebase ahora se hace en onAuthStateChanged
   </script>
 </body>
 </html>
