@@ -246,16 +246,21 @@
       background:#f9fafb;
       z-index:4;
       text-align:left;
-      min-width:110px;   /* espacio para código + iconos */
-      max-width:120px;
     }
     th.sticky-left-2,
     td.sticky-left-2{
       position:sticky;
-      left:120px;        /* se alinea con el ancho anterior */
+      left:110px;
       background:#f9fafb;
       z-index:4;
       text-align:left;
+    }
+
+    /* columna código más angosta pero con iconos visibles */
+    #tabla-plan th.codigo-col,
+    #tabla-plan td.codigo-col{
+      min-width:110px;
+      max-width:130px;
     }
 
     tr:nth-child(even) td{
@@ -270,18 +275,13 @@
 
     input.cell-input{
       width:100%;
-      border-radius:.3rem;
+      border-radius:.35rem;
       border:1px solid #cbd5e1;
       background:#ffffff;
       color:#111827;
-      padding:.06rem .16rem;
-      font-size:.62rem;
+      padding:.12rem .2rem;
+      font-size:.68rem;
       text-align:right;
-      font-variant-numeric:tabular-nums;
-    }
-    /* que las celdas de PTO/PLAN/STOCK se adapten a los dígitos */
-    #tabla-plan input.cell-input[data-field]{
-      min-width:7ch;
     }
     input.cell-input[readonly]{
       background:#f3f4f6;
@@ -302,10 +302,6 @@
     .line-header-row td.turnos-disponibles-cell{
       background:#fef9c3 !important;
     }
-    .linea-balance{
-      font-size:.7rem;
-      line-height:1.25;
-    }
     .linea-balance.ok{
       color:#16a34a;
       text-align:center;
@@ -313,12 +309,6 @@
     .linea-balance.over{
       color:#b91c1c;
       text-align:center;
-    }
-    .linea-neg{
-      display:block;
-      font-size:.63rem;
-      opacity:.85;
-      margin-top:2px;
     }
 
     .line-subtotal-row td{
@@ -1093,7 +1083,7 @@
     function renderComentariosList(){
       const cont=document.getElementById("comentarios-list");
       if(!cont) return;
-      cont.innerHTML = "";
+      cont.innerHTML = ""; // ya no mostramos comentarios de línea/mes
     }
 
     function renderPlan(){
@@ -1128,7 +1118,7 @@
       let thead = ''
         + '<thead>'
         + '<tr>'
-        + '<th class="sticky-top sticky-left" rowspan="2">Código</th>'
+        + '<th class="sticky-top sticky-left codigo-col" rowspan="2">Código</th>'
         + '<th class="sticky-top sticky-left-2" rowspan="2">Descripción</th>'
         + '<th class="sticky-top" rowspan="2">Kg/caja</th>'
         + '<th class="sticky-top" rowspan="2">Cjs/turno</th>'
@@ -1175,8 +1165,8 @@
 
         body += ''
           + '<tr class="line-header-row" data-linea="'+escapeHtml(linea)+'">'
-          + '<td class="sticky-left line-header-cell" style="text-align:left;">'+escapeHtml(linea)+'</td>'
-          + '<td class="sticky-left-2 line-header-cell"></td>'
+          + '<td class="sticky-left line-header-cell codigo-col" style="text-align:left;"></td>'
+          + '<td class="sticky-left-2 line-header-cell" style="text-align:left;">'+escapeHtml(linea)+'</td>'
           + '<td class="line-header-cell"></td>'
           + '<td class="line-header-cell"></td>'
           + '<td class="line-header-cell"></td>'
@@ -1215,7 +1205,7 @@
 
           body += ''
             + '<tr data-codigo="'+escapeHtml(p.codigo)+'" data-linea="'+escapeHtml(linea)+'" class="'+(isMarked?'sku-row-marked':'')+'">'
-            + '<td class="sticky-left" style="text-align:left;">'
+            + '<td class="sticky-left codigo-col" style="text-align:left;">'
             + '  <div style="display:flex;align-items:center;gap:.25rem;">'
             + '    <span class="sku-code">'+escapeHtml(p.codigo)+'</span>'
             + '    <button class="mini-btn sku-mark-btn no-print" data-codigo="'+escapeHtml(p.codigo)+'" title="Marcar / desmarcar SKU">⭐</button>'
@@ -1246,8 +1236,8 @@
 
         body += ''
           + '<tr class="line-subtotal-row" data-linea="'+escapeHtml(linea)+'">'
-          + '<td class="sticky-left" style="text-align:left;">Subtotal '+escapeHtml(linea)+'</td>'
-          + '<td class="sticky-left-2"></td>'
+          + '<td class="sticky-left codigo-col" style="text-align:left;">Subtotal</td>'
+          + '<td class="sticky-left-2" style="text-align:left;">'+escapeHtml(linea)+'</td>'
           + '<td></td><td></td>'
           + '<td class="sub-ppto1 total-cell-empty"></td>'
           + '<td class="sub-ppto2 total-cell-empty"></td>'
@@ -1451,10 +1441,9 @@
         totalTurnos += totalT;
 
         if(!acumLinea[linea]){
-          acumLinea[linea] = {p1:0,p2:0,p3:0,pl1:0,pl2:0,pl3:0,t1:0,t2:0,t3:0,extra1:0,extra2:0,extra3:0};
+          acumLinea[linea] = {p1:0,p2:0,p3:0,pl1:0,pl2:0,pl3:0,t1:0,t2:0,t3:0};
         }
         const a = acumLinea[linea];
-
         a.p1  += (d1.presupuesto||0);
         a.p2  += (d2.presupuesto||0);
         a.p3  += (d3.presupuesto||0);
@@ -1464,18 +1453,11 @@
         a.t1  += t1;
         a.t2  += t2;
         a.t3  += t3;
-
-        // turnos extra sugeridos por stock negativo en cada mes
-        if(cjsTurno>0){
-          if(sf1 < 0) a.extra1 += Math.abs(sf1) / cjsTurno;
-          if(sf2 < 0) a.extra2 += Math.abs(sf2) / cjsTurno;
-          if(sf3 < 0) a.extra3 += Math.abs(sf3) / cjsTurno;
-        }
       });
 
       tbody.querySelectorAll("tr.line-header-row").forEach(function(hr){
         const linea = hr.getAttribute("data-linea");
-        const info = acumLinea[linea] || {t1:0,t2:0,t3:0,extra1:0,extra2:0,extra3:0};
+        const info = acumLinea[linea] || {t1:0,t2:0,t3:0};
         const inputs = hr.querySelectorAll("input.linea-turnos");
         const disp1 = Number(inputs[0].value)||0;
         const disp2 = Number(inputs[1].value)||0;
@@ -1489,37 +1471,15 @@
         const cellBalance = hr.querySelector(".linea-balance");
         cellBalance.classList.remove("ok","over");
 
-        const sug1 = info.extra1 || 0;
-        const sug2 = info.extra2 || 0;
-        const sug3 = info.extra3 || 0;
-
-        let balanceText = "";
         if(totalDisp===0 && totalUsed===0){
-          balanceText = "";
+          cellBalance.textContent = "";
         }else if(diff>=0){
-          balanceText = "✅ OK · +"+diff.toFixed(2)+" turnos libres";
+          cellBalance.textContent = "✅ OK · +"+diff.toFixed(2)+" turnos libres";
           cellBalance.classList.add("ok");
         }else{
           const falta = Math.abs(diff);
-          balanceText = "⚠ Excedido · faltan "+falta.toFixed(2)+" turnos";
+          cellBalance.textContent = "⚠ Excedido · faltan "+falta.toFixed(2)+" turnos";
           cellBalance.classList.add("over");
-        }
-
-        let sugeridosText = "";
-        if(sug1 || sug2 || sug3){
-          sugeridosText =
-            "Sug: "
-            + MESES[m1].slice(0,3)+" "+sug1.toFixed(1)
-            + " · "+MESES[m2].slice(0,3)+" "+sug2.toFixed(1)
-            + " · "+MESES[m3].slice(0,3)+" "+sug3.toFixed(1);
-        }
-
-        if(balanceText || sugeridosText){
-          cellBalance.innerHTML =
-            (balanceText || "") +
-            (sugeridosText ? '<br><span class="linea-neg">'+sugeridosText+'</span>' : "");
-        }else{
-          cellBalance.innerHTML = "";
         }
       });
 
@@ -1564,25 +1524,172 @@
       renderReportes();
     }
 
+    // -------- EXPORTACIÓN A EXCEL DESDE LOS DATOS -------- //
     function exportarExcel(){
+      // aseguramos que los stocks y turnos estén recalculados
       recalcularTodo();
-      const aoa = [];
-      const rows = tablaPlan.querySelectorAll("tr");
-      if(rows.length===0){
-        alert("No hay datos para exportar.");
+
+      if((state.productos || []).length===0){
+        alert("No hay productos para exportar.");
         return;
       }
-      rows.forEach(function(tr){
-        const row = [];
-        tr.querySelectorAll("th,td").forEach(function(cell){
-          row.push((cell.innerText || "").trim());
+
+      const m1 = ventanaMeses[0], m2 = ventanaMeses[1], m3 = ventanaMeses[2];
+      const nom1 = MESES[m1], nom2 = MESES[m2], nom3 = MESES[m3];
+
+      const lineaFiltro = selLineaPlan.value || "";
+      const productosFiltrados = (state.productos || [])
+        .filter(function(p){return !lineaFiltro || (p.linea || "").trim()===lineaFiltro;})
+        .slice()
+        .sort(function(a,b){
+          const la = (a.linea || "").localeCompare(b.linea || "");
+          if(la!==0) return la;
+          return String(a.codigo).localeCompare(String(b.codigo));
         });
-        aoa.push(row);
+
+      if(productosFiltrados.length===0){
+        alert("No hay productos para la línea seleccionada.");
+        return;
+      }
+
+      // Primero, acumulamos turnos por línea para poder calcular el balance en el Excel
+      const lineaAgg = {};
+      productosFiltrados.forEach(function(p){
+        const linea = (p.linea || "SIN LÍNEA").trim() || "SIN LÍNEA";
+        if(!lineaAgg[linea]){
+          const tL1 = getLineaTurnos(linea,currentYear,m1);
+          const tL2 = getLineaTurnos(linea,currentYear,m2);
+          const tL3 = getLineaTurnos(linea,currentYear,m3);
+          lineaAgg[linea] = {
+            t1:0,t2:0,t3:0,
+            disp1: tL1.turnos_disponibles || 0,
+            disp2: tL2.turnos_disponibles || 0,
+            disp3: tL3.turnos_disponibles || 0
+          };
+        }
+        const agg = lineaAgg[linea];
+
+        const d1 = getDato(p.codigo,currentYear,m1);
+        const d2 = getDato(p.codigo,currentYear,m2);
+        const d3 = getDato(p.codigo,currentYear,m3);
+
+        const cjsTurno = p.cjs_turno || 0;
+        if(cjsTurno>0){
+          agg.t1 += (d1.plan || 0) / cjsTurno;
+          agg.t2 += (d2.plan || 0) / cjsTurno;
+          agg.t3 += (d3.plan || 0) / cjsTurno;
+        }
       });
+
+      Object.keys(lineaAgg).forEach(function(linea){
+        const agg = lineaAgg[linea];
+        const used = agg.t1 + agg.t2 + agg.t3;
+        const disp = agg.disp1 + agg.disp2 + agg.disp3;
+        const diff = disp - used;
+        if(disp===0 && used===0){
+          agg.balance = "";
+        }else if(diff>=0){
+          agg.balance = "OK +"+diff.toFixed(2)+" turnos libres";
+        }else{
+          agg.balance = "EXCEDIDO - faltan "+Math.abs(diff).toFixed(2)+" turnos";
+        }
+      });
+
+      // Armamos la matriz AOA para Excel
+      const aoa = [];
+      aoa.push([
+        "Línea",
+        "Código",
+        "Descripción",
+        "Kg/caja",
+        "Cjs/turno",
+        "PTO "+nom1+" (cjs)",
+        "PTO "+nom2+" (cjs)",
+        "PTO "+nom3+" (cjs)",
+        "PTO Total (cjs)",
+        "Plan "+nom1+" (cjs)",
+        "Plan "+nom2+" (cjs)",
+        "Plan "+nom3+" (cjs)",
+        "Plan Total (cjs)",
+        "Stock inicial "+nom1,
+        "Stock fin "+nom1,
+        "Stock fin "+nom2,
+        "Stock fin "+nom3,
+        "Turnos "+nom1,
+        "Turnos "+nom2,
+        "Turnos "+nom3,
+        "Turnos Total",
+        "Turnos disp. línea "+nom1,
+        "Turnos disp. línea "+nom2,
+        "Turnos disp. línea "+nom3,
+        "Balance turnos línea"
+      ]);
+
+      productosFiltrados.forEach(function(p){
+        const linea = (p.linea || "SIN LÍNEA").trim() || "SIN LÍNEA";
+        const agg = lineaAgg[linea];
+
+        const d1 = getDato(p.codigo,currentYear,m1);
+        const d2 = getDato(p.codigo,currentYear,m2);
+        const d3 = getDato(p.codigo,currentYear,m3);
+
+        const ppto1 = d1.presupuesto || 0;
+        const ppto2 = d2.presupuesto || 0;
+        const ppto3 = d3.presupuesto || 0;
+        const pptoTot = ppto1 + ppto2 + ppto3;
+
+        const plan1 = d1.plan || 0;
+        const plan2 = d2.plan || 0;
+        const plan3 = d3.plan || 0;
+        const planTot = plan1 + plan2 + plan3;
+
+        const si1 = d1.stock_inicial || 0;
+        const sf1 = si1 + plan1 - ppto1;
+        const sf2 = sf1 + plan2 - ppto2;
+        const sf3 = sf2 + plan3 - ppto3;
+
+        const cjsTurno = p.cjs_turno || 0;
+        let t1=0,t2=0,t3=0,tTot=0;
+        if(cjsTurno>0){
+          t1 = plan1 / cjsTurno;
+          t2 = plan2 / cjsTurno;
+          t3 = plan3 / cjsTurno;
+          tTot = t1 + t2 + t3;
+        }
+
+        aoa.push([
+          linea,
+          p.codigo,
+          p.descripcion,
+          p.kg_caja || "",
+          p.cjs_turno || "",
+          ppto1,
+          ppto2,
+          ppto3,
+          pptoTot,
+          plan1,
+          plan2,
+          plan3,
+          planTot,
+          si1,
+          sf1,
+          sf2,
+          sf3,
+          Number(t1.toFixed(2)),
+          Number(t2.toFixed(2)),
+          Number(t3.toFixed(2)),
+          Number(tTot.toFixed(2)),
+          agg ? agg.disp1 : 0,
+          agg ? agg.disp2 : 0,
+          agg ? agg.disp3 : 0,
+          agg ? agg.balance : ""
+        ]);
+      });
+
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       XLSX.utils.book_append_sheet(wb, ws, "Plan_3M");
-      const m1 = ventanaMeses[0], m3 = ventanaMeses[2];
+
       const filename = "plan_"+currentYear+"_"+m1+"-"+m3+".xlsx";
       XLSX.writeFile(wb, filename);
     }
@@ -1794,5 +1901,6 @@
   </script>
 </body>
 </html>
+
 
 
