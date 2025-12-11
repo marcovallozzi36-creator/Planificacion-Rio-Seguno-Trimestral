@@ -399,6 +399,13 @@
       background:#fef3c7 !important;
     }
 
+    /* NUEVO: texto de sugerencia por SKU */
+    .sku-sugg{
+      font-size:.58rem;
+      color:#b91c1c;
+      margin-top:1px;
+    }
+
     #comentarios-list{
       margin-top:.4rem;
       font-size:.7rem;
@@ -1246,10 +1253,12 @@
           body += ''
             + '<tr data-codigo="'+escapeHtml(p.codigo)+'" data-linea="'+escapeHtml(linea)+'" class="'+(isMarked?'sku-row-marked':'')+'">'
             + '<td class="sticky-left codigo-col" style="text-align:left;">'
-            + '  <div style="display:flex;align-items:center;gap:.25rem;">'
-            + '    <span class="sku-code">'+escapeHtml(p.codigo)+'</span>'
-            + '    <button class="mini-btn sku-mark-btn no-print" data-codigo="'+escapeHtml(p.codigo)+'" title="Marcar / desmarcar SKU">⭐</button>'
-            + '    <button class="mini-btn sku-note-btn no-print'+noteClass+'" data-codigo="'+escapeHtml(p.codigo)+'" title="'+noteTitle+'">📝</button>'
+            + '  <div style="display:flex;flex-direction:column;gap:1px;">'
+            + '    <div style="display:flex;align-items:center;gap:.25rem;">'
+            + '      <span class="sku-code">'+escapeHtml(p.codigo)+'</span>'
+            + '      <button class="mini-btn sku-mark-btn no-print" data-codigo="'+escapeHtml(p.codigo)+'" title="Marcar / desmarcar SKU">⭐</button>'
+            + '      <button class="mini-btn sku-note-btn no-print'+noteClass+'" data-codigo="'+escapeHtml(p.codigo)+'" title="'+noteTitle+'">📝</button>'
+            + '    </div>'
             + '  </div>'
             + '</td>'
             + '<td class="sticky-left-2" style="text-align:left;">'+escapeHtml(p.descripcion)+'</td>'
@@ -1449,8 +1458,7 @@
           acumLinea[linea] = {
             p1:0,p2:0,p3:0,
             pl1:0,pl2:0,pl3:0,
-            t1:0,t2:0,t3:0,
-            extraT1:0,extraT2:0,extraT3:0
+            t1:0,t2:0,t3:0
           };
         }
         const a = acumLinea[linea];
@@ -1476,23 +1484,40 @@
         d2.stock_inicial = sf1;
         d3.stock_inicial = sf2;
 
-        if(cjsTurno > 0){
-          if(sf1 < 0){
-            a.extraT1 += (-sf1) / cjsTurno;
-          }
-          if(sf2 < 0){
-            a.extraT2 += (-sf2) / cjsTurno;
-          }
-          if(sf3 < 0){
-            a.extraT3 += (-sf3) / cjsTurno;
-          }
-        }
-
         marcarStock(tr.querySelector(".sf1"), sf1, d1.presupuesto);
         marcarStock(tr.querySelector(".sf2"), sf2, d2.presupuesto);
         marcarStock(tr.querySelector(".sf3"), sf3, d3.presupuesto);
 
         totalStockM3 += sf3;
+
+        // --- SUGERENCIA DE TURNOS POR SKU (nuevo) ---
+        let extraTurnsSku = 0;
+        if(cjsTurno > 0){
+          const faltantes = [];
+          if(sf1 < 0) faltantes.push(-sf1);
+          if(sf2 < 0) faltantes.push(-sf2);
+          if(sf3 < 0) faltantes.push(-sf3);
+          if(faltantes.length){
+            const maxFalta = Math.max.apply(null,faltantes);
+            extraTurnsSku = maxFalta / cjsTurno;
+          }
+        }
+        const skuCodeSpan = tr.querySelector(".sku-code");
+        if(skuCodeSpan){
+          const skuCell = skuCodeSpan.parentElement.parentElement; // el div flex-column
+          let sugEl = skuCell.querySelector(".sku-sugg");
+          if(extraTurnsSku > 0.001){
+            if(!sugEl){
+              sugEl = document.createElement("div");
+              sugEl.className = "sku-sugg";
+              skuCell.appendChild(sugEl);
+            }
+            sugEl.textContent = "+ "+extraTurnsSku.toFixed(2)+" turnos sugeridos";
+          }else if(sugEl){
+            sugEl.remove();
+          }
+        }
+        // --------------------------------------------
 
         let t1=0,t2=0,t3=0,totalT=0;
         if(cjsTurno>0){
@@ -1528,8 +1553,7 @@
       tbody.querySelectorAll("tr.line-header-row").forEach(function(hr){
         const linea = hr.getAttribute("data-linea");
         const info = acumLinea[linea] || {
-          t1:0,t2:0,t3:0,
-          extraT1:0,extraT2:0,extraT3:0
+          t1:0,t2:0,t3:0
         };
         const inputs = hr.querySelectorAll("input.linea-turnos");
         const disp1 = Number(inputs[0].value)||0;
@@ -1554,14 +1578,7 @@
           cellBalance.textContent = "⚠ Excedido · faltan "+falta.toFixed(2)+" turnos";
           cellBalance.classList.add("over");
         }
-
-        const extraTotal = (info.extraT1||0)+(info.extraT2||0)+(info.extraT3||0);
-        if(extraTotal > 0){
-          const base = cellBalance.textContent || "";
-          cellBalance.textContent = base
-            ? base + " · sugerencia stock: +"+extraTotal.toFixed(2)+" turnos"
-            : "Sugerencia stock: +"+extraTotal.toFixed(2)+" turnos";
-        }
+        // NOTA: ya no se agregan sugerencias de stock por línea, solo por SKU.
       });
 
       tbody.querySelectorAll("tr.line-subtotal-row").forEach(function(sr){
@@ -1978,5 +1995,3 @@
   </script>
 </body>
 </html>
-
-
