@@ -11,6 +11,7 @@
   <!-- Firebase (compat, funciona bien en HTML estático local) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 
   <style>
     *{
@@ -25,41 +26,14 @@
       flex-direction:column;
       min-height:100vh;
     }
-    header{
-      padding:.75rem 1rem;
-      border-bottom:1px solid #e5e7eb;
-      background:#ffffff;
-      display:flex;
-      flex-wrap:wrap;
-      gap:.25rem;
-      align-items:center;
-      justify-content:center;
-      text-align:center;
-      box-shadow:0 3px 10px rgba(15,23,42,.06);
-      position:sticky;
-      top:0;
-      z-index:20;
-    }
-    h1{
-      margin:0;
-      font-size:1.1rem;
-      display:flex;
-      gap:.4rem;
-      align-items:center;
-      justify-content:center;
-    }
-    small{
-      opacity:.8;
-      font-size:.75rem;
-      display:block;
-      text-align:center;
-      margin-top:.15rem;
-    }
+
+    /* header original eliminado para ganar espacio de pantalla */
+
     main{
       width:100%;
       max-width:100%;
       margin:0;
-      padding:.75rem .75rem 1.1rem;
+      padding:.4rem .6rem .9rem;
     }
 
     label{
@@ -149,12 +123,12 @@
     .tabs{
       display:flex;
       gap:.6rem;
-      margin-bottom:.9rem;
+      margin-bottom:.6rem;
       flex-wrap:wrap;
       justify-content:center;
     }
     .tab-btn{
-      padding:.45rem 1.1rem;
+      padding:.35rem 1rem;
       border-radius:999px;
       border:1px solid #cbd5f5;
       background:#ffffff;
@@ -183,8 +157,8 @@
       background:#ffffff;
       border:1px solid #e5e7eb;
       border-radius:.9rem;
-      padding:.8rem 1rem .9rem;
-      margin-bottom:.75rem;
+      padding:.7rem .85rem .85rem;
+      margin-bottom:.6rem;
       box-shadow:0 6px 16px rgba(15,23,42,.08);
     }
     .card h2{
@@ -206,9 +180,12 @@
       margin-top:.35rem;
     }
 
-    /* tabla principal: altura casi pantalla completa */
+    /* tabla principal:
+       ahora con scroll propio vertical + header sticky */
     #tab-plan .table-wrap{
-      max-height:calc(100vh - 235px);
+      overflow-x:auto;
+      overflow-y:auto;
+      max-height:calc(100vh - 260px);
     }
 
     table{
@@ -235,17 +212,25 @@
       text-align:right;
       color:#111827;
     }
+
+    /* headers sticky para meses / PTO / Plan / Stock / Turnos */
+    #tabla-plan thead th{
+      position:sticky;
+      top:0;
+      z-index:10;
+    }
+
     th.sticky-top{
       position:sticky;
       top:0;
-      z-index:3;
+      z-index:11;
     }
     th.sticky-left,
     td.sticky-left{
       position:sticky;
       left:0;
       background:#f9fafb;
-      z-index:4;
+      z-index:12;
       text-align:left;
     }
     th.sticky-left-2,
@@ -253,7 +238,7 @@
       position:sticky;
       left:110px;
       background:#f9fafb;
-      z-index:4;
+      z-index:12;
       text-align:left;
     }
 
@@ -335,7 +320,7 @@
       display:flex;
       flex-wrap:wrap;
       gap:.7rem;
-      margin:.2rem 0 .7rem;
+      margin:.1rem 0 .6rem;
       justify-content:flex-start;
     }
     .kpi-card{
@@ -399,7 +384,7 @@
       background:#fef3c7 !important;
     }
 
-    /* NUEVO: texto de sugerencia por SKU */
+    /* texto de sugerencia por SKU */
     .sku-sugg{
       font-size:.58rem;
       color:#b91c1c;
@@ -413,20 +398,20 @@
     }
 
     @media (max-width:700px){
-      header{
-        padding:.7rem .6rem;
-      }
       main{
-        padding:.7rem .45rem 1rem;
+        padding:.5rem .35rem .9rem;
       }
       .card{
-        padding:.85rem .8rem;
+        padding:.7rem .7rem .8rem;
       }
       table{
         min-width:800px;
       }
       .kpi-row{
         justify-content:center;
+      }
+      #tab-plan .table-wrap{
+        max-height:calc(100vh - 290px);
       }
     }
 
@@ -439,7 +424,6 @@
       body{
         background:#ffffff;
       }
-      header,
       .tabs,
       .no-print,
       .mini-btn{
@@ -480,20 +464,50 @@
   </style>
 </head>
 <body>
-  <header class="no-print">
-    <div>
-      <h1>📊🏭 Planificación Rio Segundo</h1>
-      <small>SKU en filas · agrupados por línea · PTO / PLAN / STOCK / TURNOS · todo a la vista</small>
-    </div>
-  </header>
+  <!-- LOGIN FULLSCREEN -->
+  <div id="login-screen" style="
+    position:fixed;
+    inset:0;
+    background:#0f172a;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:1rem;
+    z-index:9999;
+    color:#e5e7eb;
+  ">
+    <div style="background:#020617; padding:1.4rem 1.8rem; border-radius:1rem; box-shadow:0 15px 40px rgba(0,0,0,.6); min-width:260px; max-width:320px;">
+      <h2 style="margin:0 0 .75rem; font-size:1.1rem; text-align:center;">
+        🔐 Ingreso · Planificación Rio Segundo
+      </h2>
+      <p style="margin:0 0 .9rem; font-size:.78rem; opacity:.85; text-align:center;">
+        Ingresá con tu usuario habilitado (Firebase Auth).
+      </p>
 
-  <main>
+      <div style="display:flex; flex-direction:column; gap:.45rem;">
+        <input id="login-email" type="email" placeholder="Email" style="padding:.45rem .6rem; border-radius:.55rem; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:.8rem;">
+        <input id="login-pass" type="password" placeholder="Contraseña" style="padding:.45rem .6rem; border-radius:.55rem; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:.8rem;">
+        <button id="login-btn" style="margin-top:.25rem; padding:.45rem .8rem; border-radius:999px; border:none; background:#16a34a; color:#ecfdf5; font-weight:600; cursor:pointer; font-size:.8rem; display:flex; align-items:center; justify-content:center; gap:.35rem;">
+          <span>Ingresar</span> <span>➡</span>
+        </button>
+        <div id="login-error" style="min-height:1rem; font-size:.7rem; color:#fca5a5; margin-top:.2rem;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENIDO PRINCIPAL (oculto hasta login OK) -->
+  <main style="display:none;">
     <!-- TABS -->
     <div class="tabs no-print">
       <button class="tab-btn" data-tab="lineas">🧵 Líneas de producción</button>
       <button class="tab-btn" data-tab="productos">🧾 Productos</button>
       <button class="tab-btn active" data-tab="plan">📆 Planificación 3 meses</button>
       <button class="tab-btn" data-tab="reportes">📈 Reportes</button>
+    </div>
+    <!-- Botón logout -->
+    <div class="no-print" style="display:flex; justify-content:flex-end; margin-bottom:.4rem;">
+      <button id="btn-logout" class="secondary">🚪 Cerrar sesión</button>
     </div>
 
     <!-- ============ TAB LÍNEAS ============ -->
@@ -580,8 +594,6 @@
 
     <!-- ============ TAB PLAN ============ -->
     <section id="tab-plan" class="card">
-      <!-- Título interno eliminado para ganar espacio -->
-
       <!-- KPI -->
       <div class="kpi-row">
         <div class="kpi-card" id="kpi-card-pto">
@@ -660,9 +672,8 @@
       </div>
     </section>
   </main>
-
   <script>
-    // ------------------ FIREBASE INIT (compat) ------------------ //
+    // ------------------ FIREBASE INIT (compat) + LOGIN ------------------ //
     const firebaseConfig = {
       apiKey: "AIzaSyCElhjBq_8WxvQt7DTqTJ9mvIWY0B6LIBI",
       authDomain: "plantrimrio2.firebaseapp.com",
@@ -673,14 +684,98 @@
     };
 
     let db = null;
+    let auth = null;
     let firebaseEnabled = true;
+
+    const loginScreen = document.getElementById("login-screen");
+    const mainEl = document.querySelector("main");
+    const loginBtn = document.getElementById("login-btn");
+    const loginEmail = document.getElementById("login-email");
+    const loginPass = document.getElementById("login-pass");
+    const loginError = document.getElementById("login-error");
+    const logoutBtn = document.getElementById("btn-logout");
 
     try{
       const app = firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
+      auth = firebase.auth();
+
+      // Persistencia tipo sesión (se pierde al cerrar el navegador)
+      auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(function(err){
+        console.error("Error seteando persistencia:", err);
+      });
+
+      // Escucha de sesión: si hay usuario → muestra app y carga datos
+      auth.onAuthStateChanged(function(user){
+        if(user){
+          if(loginScreen) loginScreen.style.display = "none";
+          if(mainEl) mainEl.style.display = "block";
+          loadStateFromFirebase(true);
+        }else{
+          // Sin sesión → pedir login
+          if(loginScreen) loginScreen.style.display = "flex";
+          if(mainEl) mainEl.style.display = "none";
+        }
+      });
     }catch(e){
       console.error("Error inicializando Firebase:", e);
       firebaseEnabled = false;
+      // Sin Firebase: dejar entrar igual pero sin guardado remoto
+      if(loginScreen) loginScreen.style.display = "none";
+      if(mainEl) mainEl.style.display = "block";
+    }
+
+    if(loginBtn){
+      loginBtn.addEventListener("click", async function(){
+        if(!auth){
+          // sin auth (offline) → simplemente entrar
+          if(loginScreen) loginScreen.style.display = "none";
+          if(mainEl) mainEl.style.display = "block";
+          return;
+        }
+        const email = (loginEmail.value || "").trim();
+        const pass  = (loginPass.value || "").trim();
+        if(!email || !pass){
+          loginError.textContent = "Completá email y contraseña.";
+          return;
+        }
+        loginBtn.disabled = true;
+        loginError.textContent = "";
+        try{
+          await auth.signInWithEmailAndPassword(email, pass);
+          // onAuthStateChanged se encarga del resto
+        }catch(err){
+          console.error("Error login:", err);
+          loginError.textContent = "Usuario o contraseña incorrectos.";
+        }finally{
+          loginBtn.disabled = false;
+        }
+      });
+
+      // Enter en los inputs también dispara login
+      [loginEmail, loginPass].forEach(function(inp){
+        inp.addEventListener("keydown", function(e){
+          if(e.key === "Enter"){
+            e.preventDefault();
+            loginBtn.click();
+          }
+        });
+      });
+    }
+
+    // Botón de cerrar sesión
+    if(logoutBtn){
+      logoutBtn.addEventListener("click", async function(){
+        try{
+          if(auth){
+            await auth.signOut();
+          }
+        }catch(err){
+          console.error("Error al cerrar sesión:", err);
+        }
+        if(loginScreen) loginScreen.style.display = "flex";
+        if(mainEl) mainEl.style.display = "none";
+      });
     }
 
     // ------------------ LÓGICA APP ------------------ //
@@ -750,7 +845,7 @@
       }catch(err){
         console.error("Error leyendo Firebase:", err);
         firebaseEnabled = false;
-        if(!initial) alert("Error al leer de Firebase. Se seguirá usando solo en esta sesión (sin guardado local).");
+        if(!initial) alert("Error al leer de Firebase. Se seguirá usando solo en esta sesión.");
       }
     }
 
@@ -1490,7 +1585,7 @@
 
         totalStockM3 += sf3;
 
-        // --- SUGERENCIA DE TURNOS POR SKU (nuevo) ---
+        // --- SUGERENCIA DE TURNOS POR SKU ---
         let extraTurnsSku = 0;
         if(cjsTurno > 0){
           const faltantes = [];
@@ -1578,7 +1673,6 @@
           cellBalance.textContent = "⚠ Excedido · faltan "+falta.toFixed(2)+" turnos";
           cellBalance.classList.add("over");
         }
-        // NOTA: ya no se agregan sugerencias de stock por línea, solo por SKU.
       });
 
       tbody.querySelectorAll("tr.line-subtotal-row").forEach(function(sr){
@@ -1800,7 +1894,7 @@
 
       if((state.productos || []).length===0){
         tablaReportes.innerHTML = '<thead><tr><th>⚠️ No hay productos cargados.</th></tr></thead>';
-        return;
+      return;
       }
       const m1=ventanaMeses[0],m2=ventanaMeses[1],m3=ventanaMeses[2];
       const nom1=MESES[m1],nom2=MESES[m2],nom3=MESES[m3];
@@ -1991,7 +2085,7 @@
     renderLineas();
     renderProductos();
     renderPlan();
-    loadStateFromFirebase(true);
+    // Carga desde Firebase ahora se hace en onAuthStateChanged
   </script>
 </body>
 </html>
