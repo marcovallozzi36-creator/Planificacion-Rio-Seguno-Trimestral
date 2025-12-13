@@ -1,3 +1,4 @@
+<!-- ===================== PARTE 1 / 3 ===================== -->
 <!doctype html>
 <html lang="es">
 <head>
@@ -210,11 +211,23 @@
       color:#111827;
     }
 
-    /* headers sticky */
+    /* ===== Sticky header PRO (2 filas) ===== */
+    #tabla-plan{
+      --thead1h: 28px; /* fallback; se recalcula en JS */
+    }
     #tabla-plan thead th{
-      position:sticky;
-      top:0;
-      z-index:10;
+      position: sticky;
+      background:#f1f5f9;
+    }
+    /* fila 1 pegada arriba */
+    #tabla-plan thead tr:first-child th{
+      top: 0;
+      z-index: 30;
+    }
+    /* fila 2 pegada debajo de fila 1 */
+    #tabla-plan thead tr:nth-child(2) th{
+      top: var(--thead1h);
+      z-index: 29;
     }
 
     th.sticky-top{
@@ -239,6 +252,10 @@
       text-align:left;
     }
 
+    /* Intersecciones: sticky top + sticky left */
+    #tabla-plan thead th.sticky-left{ z-index:40; }
+    #tabla-plan thead th.sticky-left-2{ z-index:39; }
+
     /* columna código */
     #tabla-plan th.codigo-col,
     #tabla-plan td.codigo-col{
@@ -254,6 +271,11 @@
     }
     tr:hover td:not(.line-header-cell):not(.line-subtotal-cell){
       background:#dbeafe;
+    }
+    /* evitar que hover “ensucie” sticky-left */
+    tr:hover td.sticky-left,
+    tr:hover td.sticky-left-2{
+      background:#f9fafb !important;
     }
 
     input.cell-input{
@@ -414,20 +436,17 @@
 
     /* ================== MODO IMPRESIÓN AJUSTADO A A4 ================== */
     @media print{
-      /* Página A4 horizontal */
       @page{
         size:A4 landscape;
         margin:8mm;
       }
 
-      /* Escalar todo el contenido para que quepa el ancho de A4 */
       html, body{
         width:297mm;
         height:210mm;
       }
       body{
         background:#ffffff;
-        /* Chrome respeta este zoom al imprimir → “achica” todo un poco */
         zoom:0.75;
         -webkit-print-color-adjust:exact;
         print-color-adjust:exact;
@@ -451,7 +470,6 @@
         margin:0;
       }
 
-      /* Que la tabla NO tenga scroll ni recortes */
       .table-wrap{
         max-height:none !important;
         overflow:visible !important;
@@ -459,15 +477,14 @@
       }
 
       table{
-        font-size:8px;       /* un toque más chico para que entren las columnas */
+        font-size:8px;
         min-width:0 !important;
         table-layout:auto;
       }
       th,td{
-        padding:1px 2px;     /* menos espacio interno para ganar ancho */
+        padding:1px 2px;
       }
 
-      /* Sacar stickies para que no rompan los cortes de página */
       th.sticky-top,
       th.sticky-left,
       th.sticky-left-2,
@@ -688,6 +705,7 @@
       </div>
     </section>
   </main>
+<!-- ===================== PARTE 2 / 3 ===================== -->
   <script>
     // ------------------ FIREBASE INIT (compat) + LOGIN ------------------ //
     const firebaseConfig = {
@@ -712,16 +730,14 @@
     const logoutBtn = document.getElementById("btn-logout");
 
     try{
-      const app = firebase.initializeApp(firebaseConfig);
+      firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
       auth = firebase.auth();
 
-      // Persistencia tipo sesión (se pierde al cerrar el navegador)
       auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(function(err){
         console.error("Error seteando persistencia:", err);
       });
 
-      // Escucha de sesión
       auth.onAuthStateChanged(function(user){
         if(user){
           if(loginScreen) loginScreen.style.display = "none";
@@ -788,7 +804,7 @@
       });
     }
 
-    // ------------------ LÓGICA APP (igual que antes) ------------------ //
+    // ------------------ LÓGICA APP ------------------ //
     const COLLECTION = "planificacion";
     const DOC_ID     = "planner_general";
 
@@ -823,6 +839,21 @@
       }else{
         inp.style.fontSize = "";
       }
+    }
+
+    // ✅ Orden numérico real por código
+    function parseCodigoNum(c){
+      const s = String(c ?? "").trim();
+      if(/^\d+(\.\d+)?$/.test(s)) return Number(s);
+      return null;
+    }
+    function compareCodigo(a, b){
+      const na = parseCodigoNum(a);
+      const nb = parseCodigoNum(b);
+      if(na !== null && nb !== null) return na - nb;
+      if(na !== null && nb === null) return -1;
+      if(na === null && nb !== null) return 1;
+      return String(a ?? "").localeCompare(String(b ?? ""), "es", { numeric:true, sensitivity:"base" });
     }
 
     async function loadStateFromFirebase(initial){
@@ -900,24 +931,27 @@
       return Array.from(set).sort();
     }
 
+    // ✅ renderLineas estable (sin índice roto por sort)
     function renderLineas(){
       tbodyLineas.innerHTML = "";
-      const lineas = (state.lineas || []).slice().sort(function(a,b){return a.localeCompare(b);});
+      const lineas = (state.lineas || []).slice().sort((a,b)=>a.localeCompare(b));
+
       if(lineas.length===0){
         const tr = document.createElement("tr");
         tr.innerHTML = '<td class="sticky-left" colspan="2" style="text-align:left;">⚠️ No hay líneas cargadas.</td>';
         tbodyLineas.appendChild(tr);
-      }else{
-        lineas.forEach(function(nombre,idx){
-          const tr = document.createElement("tr");
-          tr.innerHTML = ''
-            + '<td class="sticky-left" style="text-align:left;">'
-            + '  <input class="cell-input" data-idx="'+idx+'" value="'+escapeHtml(nombre)+'" style="text-align:left;">'
-            + '</td>'
-            + '<td><button class="danger" data-del-linea="'+idx+'">🗑</button></td>';
-          tbodyLineas.appendChild(tr);
-        });
+        return;
       }
+
+      lineas.forEach(function(nombre){
+        const tr = document.createElement("tr");
+        tr.innerHTML = ''
+          + '<td class="sticky-left" style="text-align:left;">'
+          + '  <input class="cell-input linea-field" data-name="'+escapeHtml(nombre)+'" value="'+escapeHtml(nombre)+'" style="text-align:left;">'
+          + '</td>'
+          + '<td><button class="danger" data-del-linea="'+escapeHtml(nombre)+'">🗑</button></td>';
+        tbodyLineas.appendChild(tr);
+      });
     }
 
     document.getElementById("btn-add-linea").addEventListener("click", function(){
@@ -937,30 +971,64 @@
       renderLineas();
     });
 
+    // ✅ rename línea seguro + actualiza productos + turnos
     tbodyLineas.addEventListener("change", function(e){
-      const inp = e.target.closest("input.cell-input");
+      const inp = e.target.closest("input.linea-field");
       if(!inp) return;
-      const idx = Number(inp.getAttribute("data-idx"));
-      const val = inp.value.trim();
-      if(!val){
+
+      const oldName = inp.getAttribute("data-name");
+      const newName = inp.value.trim();
+
+      if(!newName){
         alert("El nombre de la línea no puede quedar vacío.");
         renderLineas();
         return;
       }
-      state.lineas[idx] = val;
+      if(newName !== oldName && (state.lineas || []).includes(newName)){
+        alert("Ya existe una línea con ese nombre.");
+        renderLineas();
+        return;
+      }
+
+      const idxReal = (state.lineas || []).indexOf(oldName);
+      if(idxReal < 0){
+        renderLineas();
+        return;
+      }
+
+      state.lineas[idxReal] = newName;
+
+      (state.productos || []).forEach(p=>{
+        if((p.linea || "").trim() === oldName) p.linea = newName;
+      });
+
+      (state.lineaTurnos || []).forEach(r=>{
+        if((r.linea || "").trim() === oldName) r.linea = newName;
+      });
+
       saveState();
       renderLineasHelpers();
+      renderLineas();
       renderProductos();
       renderPlan();
     });
 
+    // ✅ borrar línea por nombre (no por índice visual)
     tbodyLineas.addEventListener("click", function(e){
       const btn = e.target.closest("button[data-del-linea]");
       if(!btn) return;
-      const idx = Number(btn.getAttribute("data-del-linea"));
-      const nombre = state.lineas[idx];
+
+      const nombre = btn.getAttribute("data-del-linea");
       if(!confirm('¿Eliminar la línea "'+nombre+'"?')) return;
-      state.lineas.splice(idx,1);
+
+      state.lineas = (state.lineas || []).filter(l => l !== nombre);
+
+      (state.productos || []).forEach(p=>{
+        if((p.linea || "").trim() === nombre) p.linea = "";
+      });
+
+      state.lineaTurnos = (state.lineaTurnos || []).filter(r => (r.linea || "").trim() !== nombre);
+
       saveState();
       renderLineasHelpers();
       renderLineas();
@@ -1003,7 +1071,7 @@
       state.productos.sort(function(a,b){
         const la = (a.linea || "").localeCompare(b.linea || "");
         if(la!==0) return la;
-        return String(a.codigo).localeCompare(String(b.codigo));
+        return compareCodigo(a.codigo, b.codigo); // ✅ orden numérico real
       });
 
       state.productos.forEach(function(p,idx){
@@ -1227,7 +1295,7 @@
         moveVerticalInput(inp,1);
       }
     }
-
+<!-- ===================== PARTE 3 / 3 ===================== -->
     function renderPlan(){
       if((state.productos || []).length===0){
         tablaPlan.innerHTML = '<thead><tr><th>⚠️ No hay productos en el maestro.</th></tr></thead>';
@@ -1244,7 +1312,7 @@
         .sort(function(a,b){
           const la = (a.linea || "").localeCompare(b.linea || "");
           if(la!==0) return la;
-          return String(a.codigo).localeCompare(String(b.codigo));
+          return compareCodigo(a.codigo, b.codigo); // ✅ orden numérico real
         });
 
       if(productosFiltrados.length===0){
@@ -1301,9 +1369,10 @@
       Object.keys(grupos).sort().forEach(function(linea){
         const g = grupos[linea];
 
-        const tL1 = getLineaTurnos(linea,currentYear,m1);
-        const tL2 = getLineaTurnos(linea,currentYear,m2);
-        const tL3 = getLineaTurnos(linea,currentYear,m3);
+        const isSinLinea = (linea === "SIN LÍNEA");
+        const tL1 = isSinLinea ? {turnos_disponibles:null} : getLineaTurnos(linea,currentYear,m1);
+        const tL2 = isSinLinea ? {turnos_disponibles:null} : getLineaTurnos(linea,currentYear,m2);
+        const tL3 = isSinLinea ? {turnos_disponibles:null} : getLineaTurnos(linea,currentYear,m3);
 
         body += ''
           + '<tr class="line-header-row" data-linea="'+escapeHtml(linea)+'">'
@@ -1324,13 +1393,13 @@
           + '<td class="line-header-cell"></td>'
           + '<td class="line-header-cell"></td>'
           + '<td class="turnos-disponibles-cell">'
-          + '    <input class="cell-input linea-turnos" data-mes="'+m1+'" value="'+(tL1.turnos_disponibles ?? "")+'">'
+          + '    <input class="cell-input linea-turnos" data-mes="'+m1+'" value="'+(tL1.turnos_disponibles ?? "")+'" '+(isSinLinea?'readonly':'')+'>'
           + '</td>'
           + '<td class="turnos-disponibles-cell">'
-          + '    <input class="cell-input linea-turnos" data-mes="'+m2+'" value="'+(tL2.turnos_disponibles ?? "")+'">'
+          + '    <input class="cell-input linea-turnos" data-mes="'+m2+'" value="'+(tL2.turnos_disponibles ?? "")+'" '+(isSinLinea?'readonly':'')+'>'
           + '</td>'
           + '<td class="turnos-disponibles-cell">'
-          + '    <input class="cell-input linea-turnos" data-mes="'+m3+'" value="'+(tL3.turnos_disponibles ?? "")+'">'
+          + '    <input class="cell-input linea-turnos" data-mes="'+m3+'" value="'+(tL3.turnos_disponibles ?? "")+'" '+(isSinLinea?'readonly':'')+'>'
           + '</td>'
           + '<td class="turnos-disponibles-cell linea-balance"></td>'
           + '</tr>';
@@ -1401,6 +1470,15 @@
 
       body += "</tbody>";
       tablaPlan.innerHTML = thead + body;
+
+      // ✅ calcula altura real de la fila 1 del thead para que la fila 2 no se pise
+      requestAnimationFrame(() => {
+        const tr1 = tablaPlan.querySelector("thead tr:first-child");
+        if(tr1){
+          const h = tr1.getBoundingClientRect().height;
+          tablaPlan.style.setProperty("--thead1h", Math.ceil(h) + "px");
+        }
+      });
 
       tablaPlan.querySelectorAll("input.cell-input").forEach(autoFitInputFont);
 
@@ -1643,9 +1721,7 @@
 
       tbody.querySelectorAll("tr.line-header-row").forEach(function(hr){
         const linea = hr.getAttribute("data-linea");
-        const info = acumLinea[linea] || {
-          t1:0,t2:0,t3:0
-        };
+        const info = acumLinea[linea] || { t1:0,t2:0,t3:0 };
         const inputs = hr.querySelectorAll("input.linea-turnos");
         const disp1 = Number(inputs[0].value)||0;
         const disp2 = Number(inputs[1].value)||0;
@@ -1707,7 +1783,6 @@
       });
 
       updateKpis(totalPpto,totalPlan,totalTurnos,totalTurnosDisp,totalStockM3);
-
       saveState();
       renderReportes();
     }
@@ -1730,7 +1805,7 @@
         .sort(function(a,b){
           const la = (a.linea || "").localeCompare(b.linea || "");
           if(la!==0) return la;
-          return String(a.codigo).localeCompare(String(b.codigo));
+          return compareCodigo(a.codigo, b.codigo); // ✅ orden numérico real
         });
 
       if(productosFiltrados.length===0){
