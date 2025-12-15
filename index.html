@@ -493,6 +493,43 @@
         position:static !important;
       }
     }
+
+    /* ================== ✅ PUNTO 5: MODO PANTALLA COMPLETA (PLAN) ================== */
+    body.plan-fullscreen main{
+      padding:.25rem .25rem .35rem;
+    }
+    body.plan-fullscreen .tabs,
+    body.plan-fullscreen #btn-logout,
+    body.plan-fullscreen #tab-plan .row.no-print{
+      display:none !important;
+    }
+    body.plan-fullscreen #tab-plan{
+      margin:0 !important;
+    }
+    body.plan-fullscreen #tab-plan.card{
+      border:none !important;
+      box-shadow:none !important;
+      border-radius:0 !important;
+      padding:.35rem !important;
+    }
+    body.plan-fullscreen #tab-plan .table-wrap{
+      max-height:calc(100vh - 130px) !important;
+    }
+    #btn-fullscreen{
+      background:#0f172a;
+      color:#e5e7eb;
+      box-shadow:0 2px 6px rgba(15,23,42,.25);
+    }
+    #btn-fullscreen:hover:not(:disabled){
+      box-shadow:0 4px 10px rgba(15,23,42,.35);
+    }
+    body.plan-fullscreen #btn-fullscreen{
+      background:#dc2626;
+      box-shadow:0 2px 6px rgba(220,38,38,.25);
+    }
+    body.plan-fullscreen #btn-fullscreen:hover:not(:disabled){
+      box-shadow:0 4px 10px rgba(220,38,38,.35);
+    }
   </style>
 </head>
 <body>
@@ -697,6 +734,9 @@
         <button id="btn-aplicar" class="secondary">🔄 Actualizar vista</button>
         <button id="btn-guardar">💾 Guardar (Firebase)</button>
         <button id="btn-export" class="secondary">📤 Exportar vista a Excel</button>
+
+        <!-- ✅ PUNTO 5: fullscreen -->
+        <button id="btn-fullscreen" class="secondary">⛶ Pantalla completa</button>
       </div>
 
       <div class="table-wrap">
@@ -897,7 +937,7 @@
 
     function scheduleRenderReportes(){
       reportesDirty = true;
-      if(currentTab !== "reportes") return; // si no estás en reportes, ni gastes CPU
+      if(currentTab !== "reportes") return;
       if(reportesTimer) clearTimeout(reportesTimer);
       reportesTimer = setTimeout(function(){
         if(reportesDirty){
@@ -941,7 +981,6 @@
       return String(a ?? "").localeCompare(String(b ?? ""), "es", { numeric:true, sensitivity:"base" });
     }
 
-    // ✅ Ventana 3 meses cruzando año
     function buildVentana3Meses(anio, mesInicio){
       const out = [];
       for(let i=0;i<3;i++){
@@ -993,7 +1032,6 @@
           renderProductos();
           renderPlan();
 
-          // reportes quedan “sucios” hasta que entres a la pestaña (performance)
           reportesDirty = true;
 
           if(!initial) alert("✅ Datos sincronizados desde Firebase.");
@@ -1022,13 +1060,11 @@
       document.getElementById("tab-plan").style.display      = tab==="plan" ? "block":"none";
       document.getElementById("tab-reportes").style.display  = tab==="reportes" ? "block":"none";
 
-      // ✅ render reportes SOLO cuando entrás (o si quedaron sucios)
       if(tab === "reportes"){
         if(reportesDirty){
           renderReportes();
           reportesDirty = false;
         }else{
-          // por si querés refresco igual
           scheduleRenderReportes();
         }
       }
@@ -1068,6 +1104,35 @@
       if(!cont) return;
       cont.innerHTML = "";
     }
+
+    // ------------------ ✅ PUNTO 5: FULLSCREEN PLAN ------------------ //
+    const btnFullscreen = document.getElementById("btn-fullscreen");
+    function setFullscreenPlan(on){
+      document.body.classList.toggle("plan-fullscreen", !!on);
+      if(btnFullscreen){
+        btnFullscreen.textContent = document.body.classList.contains("plan-fullscreen")
+          ? "⤢ Salir pantalla completa"
+          : "⛶ Pantalla completa";
+      }
+      requestAnimationFrame(() => {
+        const tr1 = document.querySelector("#tabla-plan thead tr:first-child");
+        const tabla = document.getElementById("tabla-plan");
+        if(tr1 && tabla){
+          const h = tr1.getBoundingClientRect().height;
+          tabla.style.setProperty("--thead1h", Math.ceil(h) + "px");
+        }
+      });
+    }
+    if(btnFullscreen){
+      btnFullscreen.addEventListener("click", function(){
+        setFullscreenPlan(!document.body.classList.contains("plan-fullscreen"));
+      });
+    }
+    document.addEventListener("keydown", function(e){
+      if(e.key === "Escape" && document.body.classList.contains("plan-fullscreen")){
+        setFullscreenPlan(false);
+      }
+    });
 
     // ------------------ LÍNEAS ------------------ //
     const tbodyLineas = document.getElementById("tbody-lineas");
@@ -1517,7 +1582,6 @@
       const m1 = v1.mes, m2 = v2.mes, m3 = v3.mes;
       const a1 = v1.anio, a2 = v2.anio, a3 = v3.anio;
 
-      // ✅ encabezados compactos (sin año)
       const nom1 = MESES_ABR[m1];
       const nom2 = MESES_ABR[m2];
       const nom3 = MESES_ABR[m3];
@@ -1988,7 +2052,6 @@
 
       updateKpis(totalPpto,totalPlan,totalTurnos,totalTurnosDisp,totalStockM3);
 
-      // ✅ performance fix: NO renderReportes() acá
       reportesDirty = true;
     }
 
