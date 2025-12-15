@@ -679,13 +679,13 @@
           <select id="f-linea"></select>
         </div>
 
-        <!-- ✅ NUEVO: buscador SKU -->
+        <!-- ✅ buscador SKU -->
         <div class="field" style="flex:1; min-width:220px;">
           <label for="f-sku">🔎 Buscar SKU (código o descripción)</label>
           <input id="f-sku" placeholder="Ej: 273 / FLYNN / TUTTI..." />
         </div>
 
-        <!-- ✅ NUEVO: filtro marcados -->
+        <!-- ✅ filtro marcados -->
         <div class="field" style="min-width:170px;">
           <label>&nbsp;</label>
           <label style="display:flex;align-items:center;gap:.45rem; cursor:pointer;">
@@ -826,6 +826,7 @@
     const DOC_ID     = "planner_general";
 
     const MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const MESES_ABR = ["","ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"];
 
     let state = {
       lineas: [],
@@ -836,13 +837,77 @@
       skuMarcados: []
     };
 
-    // ✅ NUEVO: UI filtros de SKU (búsqueda + solo marcados)
+    // ✅ filtros
     let skuQuery = "";
     let onlyMarked = false;
 
     let planEventsBound = false;
-    let saveTimer = null;
 
+    // ✅ pestaña activa (para reportes on-demand)
+    let currentTab = "plan";
+
+    // ================== AUTOSAVE PRO (sin spam) ================== //
+    let saveTimer = null;
+    let dirty = false;
+    let lastSavedSig = "";
+
+    function stableStringify(obj){
+      return JSON.stringify(obj);
+    }
+
+    async function saveStateToFirebase(){
+      if(!firebaseEnabled || !db) return;
+      if(!dirty) return;
+
+      const sig = stableStringify(state);
+      if(sig === lastSavedSig){
+        dirty = false;
+        return;
+      }
+
+      try{
+        const ref = db.collection(COLLECTION).doc(DOC_ID);
+        await ref.set(state, { merge:true });
+        lastSavedSig = sig;
+        dirty = false;
+      }catch(err){
+        console.error("Error guardando en Firebase:", err);
+        firebaseEnabled = false;
+      }
+    }
+
+    function queueSaveFirebase(){
+      if(!firebaseEnabled) return;
+      if(saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveStateToFirebase, 1200);
+    }
+
+    function markDirtyAndQueueSave(){
+      dirty = true;
+      queueSaveFirebase();
+    }
+
+    function saveState(){
+      markDirtyAndQueueSave();
+    }
+
+    // ================== REPORTES ON-DEMAND (performance fix) ================== //
+    let reportesDirty = true;
+    let reportesTimer = null;
+
+    function scheduleRenderReportes(){
+      reportesDirty = true;
+      if(currentTab !== "reportes") return; // si no estás en reportes, ni gastes CPU
+      if(reportesTimer) clearTimeout(reportesTimer);
+      reportesTimer = setTimeout(function(){
+        if(reportesDirty){
+          renderReportes();
+          reportesDirty = false;
+        }
+      }, 350);
+    }
+
+    // ================== Helpers ================== //
     function escapeHtml(str){
       return String(str || "").replace(/[&<>"']/g, function(s){
         return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[s];
@@ -862,7 +927,6 @@
       }
     }
 
-    // ✅ Orden numérico real por código
     function parseCodigoNum(c){
       const s = String(c ?? "").trim();
       if(/^\d+(\.\d+)?$/.test(s)) return Number(s);
@@ -875,6 +939,32 @@
       if(na !== null && nb === null) return -1;
       if(na === null && nb !== null) return 1;
       return String(a ?? "").localeCompare(String(b ?? ""), "es", { numeric:true, sensitivity:"base" });
+    }
+
+    // ✅ Ventana 3 meses cruzando año
+    function buildVentana3Meses(anio, mesInicio){
+      const out = [];
+      for(let i=0;i<3;i++){
+        const idx = (mesInicio - 1) + i;
+        const mes = (idx % 12) + 1;
+        const a   = anio + Math.floor(idx/12);
+        out.push({ anio:a, mes:mes });
+      }
+      return out;
+    }
+
+    function getVentana(){
+      if(!Array.isArray(ventanaMeses) || ventanaMeses.length!==3 || typeof ventanaMeses[0] === "number"){
+        const baseYear = currentYear || (new Date()).getFullYear();
+        const baseMonth = 1;
+        return buildVentana3Meses(baseYear, baseMonth);
+      }
+      return ventanaMeses;
+    }
+
+    function findYearForMes(mes){
+      const v = getVentana().find(x => x.mes === mes);
+      return v ? v.anio : (currentYear || (new Date()).getFullYear());
     }
 
     async function loadStateFromFirebase(initial){
@@ -892,10 +982,20 @@
             skuNotas: data.skuNotas || [],
             skuMarcados: data.skuMarcados || []
           };
+
+          try{
+            lastSavedSig = stableStringify(state);
+            dirty = false;
+          }catch(_e){}
+
           renderLineasHelpers();
           renderLineas();
           renderProductos();
           renderPlan();
+
+          // reportes quedan “sucios” hasta que entres a la pestaña (performance)
+          reportesDirty = true;
+
           if(!initial) alert("✅ Datos sincronizados desde Firebase.");
         }else{
           if(!initial) alert("No hay datos en Firebase todavía.");
@@ -907,42 +1007,71 @@
       }
     }
 
-    async function saveStateToFirebase(){
-      if(!firebaseEnabled || !db) return;
-      try{
-        const ref = db.collection(COLLECTION).doc(DOC_ID);
-        await ref.set(state, { merge:true });
-      }catch(err){
-        console.error("Error guardando en Firebase:", err);
-        firebaseEnabled = false;
-      }
-    }
-
-    function queueSaveFirebase(){
-      if(!firebaseEnabled) return;
-      if(saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(saveStateToFirebase, 800);
-    }
-
-    function saveState(){
-      queueSaveFirebase();
-    }
-
     document.addEventListener("click", function(e){
       const btn = e.target.closest(".tab-btn");
       if(!btn) return;
+
       document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
       btn.classList.add("active");
+
       const tab = btn.getAttribute("data-tab");
+      currentTab = tab;
+
       document.getElementById("tab-lineas").style.display    = tab==="lineas" ? "block":"none";
       document.getElementById("tab-productos").style.display = tab==="productos" ? "block":"none";
       document.getElementById("tab-plan").style.display      = tab==="plan" ? "block":"none";
       document.getElementById("tab-reportes").style.display  = tab==="reportes" ? "block":"none";
+
+      // ✅ render reportes SOLO cuando entrás (o si quedaron sucios)
+      if(tab === "reportes"){
+        if(reportesDirty){
+          renderReportes();
+          reportesDirty = false;
+        }else{
+          // por si querés refresco igual
+          scheduleRenderReportes();
+        }
+      }
     });
 
+    // ------------------ DATA ACCESS ------------------ //
+    function getDato(codigo, anio, mes){
+      let d = (state.datos || []).find(function(x){
+        return x.codigo_producto===codigo && x.anio===anio && x.mes===mes;
+      });
+      if(!d){
+        d = {codigo_producto:codigo, anio:anio, mes:mes, stock_inicial:null, presupuesto:null, plan:null, turnos:null};
+        state.datos.push(d);
+      }
+      return d;
+    }
+
+    function getLineaTurnos(linea, anio, mes){
+      let r = (state.lineaTurnos || []).find(function(x){
+        return x.linea===linea && x.anio===anio && x.mes===mes;
+      });
+      if(!r){
+        r = {linea:linea, anio:anio, mes:mes, turnos_disponibles:null};
+        state.lineaTurnos.push(r);
+      }
+      return r;
+    }
+
+    function findSkuNota(codigo){
+      return (state.skuNotas || []).find(function(n){
+        return n.codigo===codigo;
+      });
+    }
+
+    function renderComentariosList(){
+      const cont=document.getElementById("comentarios-list");
+      if(!cont) return;
+      cont.innerHTML = "";
+    }
+
+    // ------------------ LÍNEAS ------------------ //
     const tbodyLineas = document.getElementById("tbody-lineas");
 
-    // (se mantiene el datalist porque se usa en edición de productos en la grilla)
     const datalistLineas = document.createElement("datalist");
     datalistLineas.id = "list-lineas";
     document.body.appendChild(datalistLineas);
@@ -958,7 +1087,6 @@
       return Array.from(set).sort();
     }
 
-    // ✅ renderLineas estable (sin índice roto por sort)
     function renderLineas(){
       tbodyLineas.innerHTML = "";
       const lineas = (state.lineas || []).slice().sort((a,b)=>a.localeCompare(b));
@@ -993,12 +1121,13 @@
       }
       state.lineas.push(nombre);
       document.getElementById("l-nombre").value = "";
-      saveState();
+      markDirtyAndQueueSave();
       renderLineasHelpers();
       renderLineas();
+
+      reportesDirty = true;
     });
 
-    // ✅ rename línea seguro + actualiza productos + turnos
     tbodyLineas.addEventListener("change", function(e){
       const inp = e.target.closest("input.linea-field");
       if(!inp) return;
@@ -1033,14 +1162,15 @@
         if((r.linea || "").trim() === oldName) r.linea = newName;
       });
 
-      saveState();
+      markDirtyAndQueueSave();
       renderLineasHelpers();
       renderLineas();
       renderProductos();
       renderPlan();
+
+      reportesDirty = true;
     });
 
-    // ✅ borrar línea por nombre (no por índice visual)
     tbodyLineas.addEventListener("click", function(e){
       const btn = e.target.closest("button[data-del-linea]");
       if(!btn) return;
@@ -1056,15 +1186,16 @@
 
       state.lineaTurnos = (state.lineaTurnos || []).filter(r => (r.linea || "").trim() !== nombre);
 
-      saveState();
+      markDirtyAndQueueSave();
       renderLineasHelpers();
       renderLineas();
       renderProductos();
       renderPlan();
+
+      reportesDirty = true;
     });
 
     function renderLineasHelpers(){
-      // datalist para edición en tabla (se mantiene)
       datalistLineas.innerHTML = "";
       lineasTotales().forEach(function(l){
         const opt = document.createElement("option");
@@ -1072,7 +1203,6 @@
         datalistLineas.appendChild(opt);
       });
 
-      // select de filtro en plan
       selLineaPlan.innerHTML = "";
       const optAll = document.createElement("option");
       optAll.value = "";
@@ -1085,7 +1215,6 @@
         selLineaPlan.appendChild(o);
       });
 
-      // ✅ select de ALTA de productos (solo elegir, sin escribir)
       if(selLineaAlta){
         const prev = selLineaAlta.value || "";
         selLineaAlta.innerHTML = "";
@@ -1099,12 +1228,12 @@
           o.textContent = l;
           selLineaAlta.appendChild(o);
         });
-        // tratar de mantener selección previa si sigue existiendo
         if(prev && lineasTotales().includes(prev)) selLineaAlta.value = prev;
         else selLineaAlta.value = "";
       }
     }
 
+    // ------------------ PRODUCTOS ------------------ //
     const tbodyProd = document.getElementById("tbody-prod");
 
     function renderProductos(){
@@ -1116,13 +1245,14 @@
         return;
       }
 
-      state.productos.sort(function(a,b){
+      const ordenados = (state.productos || []).slice().sort(function(a,b){
         const la = (a.linea || "").localeCompare(b.linea || "");
         if(la!==0) return la;
-        return compareCodigo(a.codigo, b.codigo); // ✅ orden numérico real
+        return compareCodigo(a.codigo, b.codigo);
       });
 
-      state.productos.forEach(function(p,idx){
+      ordenados.forEach(function(p){
+        const idx = (state.productos || []).findIndex(x => x.codigo === p.codigo);
         const tr = document.createElement("tr");
         tr.innerHTML =
           '<td class="sticky-left" style="text-align:left;">'
@@ -1144,7 +1274,7 @@
     document.getElementById("btn-add-prod").addEventListener("click", function(){
       const codigo = document.getElementById("p-codigo").value.trim();
       const desc   = document.getElementById("p-desc").value.trim();
-      const linea  = (document.getElementById("p-linea").value || "").trim(); // ✅ ahora viene del SELECT
+      const linea  = (document.getElementById("p-linea").value || "").trim();
       const kg     = document.getElementById("p-kg").value.trim();
       const cjs    = document.getElementById("p-cjs").value.trim();
 
@@ -1167,14 +1297,16 @@
 
       document.getElementById("p-codigo").value="";
       document.getElementById("p-desc").value="";
-      document.getElementById("p-linea").value=""; // ✅ reset select
+      document.getElementById("p-linea").value="";
       document.getElementById("p-kg").value="";
       document.getElementById("p-cjs").value="";
 
-      saveState();
+      markDirtyAndQueueSave();
       renderProductos();
       renderLineasHelpers();
       renderPlan();
+
+      reportesDirty = true;
     });
 
     tbodyProd.addEventListener("change", function(e){
@@ -1187,9 +1319,11 @@
         val = (val==="" ? null : Number(val));
       }
       state.productos[idx][field] = val;
-      saveState();
+      markDirtyAndQueueSave();
       renderLineasHelpers();
       renderPlan();
+
+      reportesDirty = true;
     });
 
     tbodyProd.addEventListener("click", function(e){
@@ -1202,9 +1336,11 @@
       state.datos = state.datos.filter(function(d){return d.codigo_producto!==codigo;});
       state.skuNotas = state.skuNotas.filter(function(n){return n.codigo!==codigo;});
       state.skuMarcados = state.skuMarcados.filter(function(c){return c!==codigo;});
-      saveState();
+      markDirtyAndQueueSave();
       renderProductos();
       renderPlan();
+
+      reportesDirty = true;
     });
 
     document.getElementById("btn-clear-prod").addEventListener("click", function(){
@@ -1213,9 +1349,11 @@
       state.datos = [];
       state.skuNotas = [];
       state.skuMarcados = [];
-      saveState();
+      markDirtyAndQueueSave();
       renderProductos();
       renderPlan();
+
+      reportesDirty = true;
     });
 
     document.getElementById("file-excel").addEventListener("change", function(e){
@@ -1240,27 +1378,29 @@
           if(linea && !(state.lineas || []).includes(linea)) state.lineas.push(linea);
           agregados++;
         });
-        saveState();
+        markDirtyAndQueueSave();
         alert("Importación completa. SKUs nuevos: "+agregados);
         renderLineasHelpers();
         renderLineas();
         renderProductos();
         renderPlan();
+
+        reportesDirty = true;
       };
       reader.readAsArrayBuffer(file);
     });
 
+    // ------------------ PLAN / REPORTES ------------------ //
     const tablaPlan = document.getElementById("tabla-plan");
     const tablaReportes = document.getElementById("tabla-reportes");
     const tablaReportesAnual = document.getElementById("tabla-reportes-anual");
 
     let currentYear = (new Date()).getFullYear();
-    let ventanaMeses = [1,2,3];
+    let ventanaMeses = buildVentana3Meses(currentYear, 1);
 
     document.getElementById("f-anio").value = currentYear;
-    document.getElementById("f-mes-inicio").value = ventanaMeses[0];
+    document.getElementById("f-mes-inicio").value = 1;
 
-    // ✅ NUEVO: listeners para buscador SKU + solo marcados (render inmediato)
     const inpSku = document.getElementById("f-sku");
     const chkOnlyMarked = document.getElementById("f-only-marked");
 
@@ -1268,64 +1408,36 @@
       inpSku.addEventListener("input", function(){
         skuQuery = (inpSku.value || "").trim();
         renderPlan();
+        reportesDirty = true;
       });
     }
     if(chkOnlyMarked){
       chkOnlyMarked.addEventListener("change", function(){
         onlyMarked = !!chkOnlyMarked.checked;
         renderPlan();
+        reportesDirty = true;
       });
     }
 
     document.getElementById("btn-aplicar").addEventListener("click", function(){
-      const a = Number(document.getElementById("f-anio").value) || currentYear;
-      let m = Number(document.getElementById("f-mes-inicio").value) || 1;
-      if(m>10){m=10;document.getElementById("f-mes-inicio").value=10;}
+      const a = Number(document.getElementById("f-anio").value) || (new Date()).getFullYear();
+      const m = Number(document.getElementById("f-mes-inicio").value) || 1;
+
       currentYear = a;
-      ventanaMeses = [m,m+1,m+2];
+      ventanaMeses = buildVentana3Meses(a, m);
+
       renderPlan();
+      reportesDirty = true;
+      scheduleRenderReportes();
     });
 
-    document.getElementById("btn-guardar").addEventListener("click", function(){
-      saveState();
-      alert("✅ Datos enviados a Firebase (si está disponible).");
+    document.getElementById("btn-guardar").addEventListener("click", async function(){
+      dirty = true;
+      await saveStateToFirebase();
+      alert("✅ Guardado en Firebase (si está disponible).");
     });
 
     document.getElementById("btn-export").addEventListener("click", exportarExcel);
-
-    function getDato(codigo, anio, mes){
-      let d = (state.datos || []).find(function(x){
-        return x.codigo_producto===codigo && x.anio===anio && x.mes===mes;
-      });
-      if(!d){
-        d = {codigo_producto:codigo, anio:anio, mes:mes, stock_inicial:null, presupuesto:null, plan:null, turnos:null};
-        state.datos.push(d);
-      }
-      return d;
-    }
-
-    function getLineaTurnos(linea, anio, mes){
-      let r = (state.lineaTurnos || []).find(function(x){
-        return x.linea===linea && x.anio===anio && x.mes===mes;
-      });
-      if(!r){
-        r = {linea:linea, anio:anio, mes:mes, turnos_disponibles:null};
-        state.lineaTurnos.push(r);
-      }
-      return r;
-    }
-
-    function findSkuNota(codigo){
-      return (state.skuNotas || []).find(function(n){
-        return n.codigo===codigo;
-      });
-    }
-
-    function renderComentariosList(){
-      const cont=document.getElementById("comentarios-list");
-      if(!cont) return;
-      cont.innerHTML = "";
-    }
 
     function moveVerticalInput(currentInput, direction){
       const td = currentInput.closest("td");
@@ -1365,14 +1477,12 @@
       if((state.productos || []).length===0){
         tablaPlan.innerHTML = '<thead><tr><th>⚠️ No hay productos en el maestro.</th></tr></thead>';
         renderComentariosList();
-        renderReportes();
         return;
       }
 
       const lineaFiltro = selLineaPlan.value || "";
-
-      // ✅ filtros: línea + búsqueda SKU + solo marcados
       const q = (skuQuery || "").toLowerCase();
+
       const productosFiltrados = state.productos
         .filter(function(p){
           if(lineaFiltro && (p.linea || "").trim() !== lineaFiltro) return false;
@@ -1387,33 +1497,36 @@
             const des = String(p.descripcion || "").toLowerCase();
             if(!cod.includes(q) && !des.includes(q)) return false;
           }
-
           return true;
         })
         .slice()
         .sort(function(a,b){
           const la = (a.linea || "").localeCompare(b.linea || "");
           if(la!==0) return la;
-          return compareCodigo(a.codigo, b.codigo); // ✅ orden numérico real
+          return compareCodigo(a.codigo, b.codigo);
         });
 
       if(productosFiltrados.length===0){
         tablaPlan.innerHTML = '<thead><tr><th>Sin productos para el filtro seleccionado.</th></tr></thead>';
         renderComentariosList();
-        renderReportes();
         return;
       }
 
-      const m1 = ventanaMeses[0], m2 = ventanaMeses[1], m3 = ventanaMeses[2];
-      const nom1 = MESES[m1], nom2 = MESES[m2], nom3 = MESES[m3];
+      const v = getVentana();
+      const v1 = v[0], v2 = v[1], v3 = v[2];
+      const m1 = v1.mes, m2 = v2.mes, m3 = v3.mes;
+      const a1 = v1.anio, a2 = v2.anio, a3 = v3.anio;
+
+      // ✅ encabezados compactos (sin año)
+      const nom1 = MESES_ABR[m1];
+      const nom2 = MESES_ABR[m2];
+      const nom3 = MESES_ABR[m3];
 
       let thead = ''
         + '<thead>'
         + '<tr>'
         + '<th class="sticky-top sticky-left codigo-col" rowspan="2">Código</th>'
         + '<th class="sticky-top sticky-left-2" rowspan="2">Descripción</th>'
-        + '<th class="sticky-top" rowspan="2">Kg/caja</th>'
-        + '<th class="sticky-top" rowspan="2">Cjs/turno</th>'
         + '<th class="sticky-top" colspan="4">📦 Presupuesto (PTO)</th>'
         + '<th class="sticky-top" colspan="4">🏭 Plan (producción)</th>'
         + '<th class="sticky-top" colspan="4">📦 Stock fin</th>'
@@ -1423,11 +1536,11 @@
         + '<th class="sticky-top">'+nom1+'</th>'
         + '<th class="sticky-top">'+nom2+'</th>'
         + '<th class="sticky-top">'+nom3+'</th>'
-        + '<th class="sticky-top">Total</th>'
+        + '<th class="sticky-top">Tot</th>'
         + '<th class="sticky-top">'+nom1+'</th>'
         + '<th class="sticky-top">'+nom2+'</th>'
         + '<th class="sticky-top">'+nom3+'</th>'
-        + '<th class="sticky-top">Total</th>'
+        + '<th class="sticky-top">Tot</th>'
         + '<th class="sticky-top">Inicial</th>'
         + '<th class="sticky-top">'+nom1+'</th>'
         + '<th class="sticky-top">'+nom2+'</th>'
@@ -1435,7 +1548,7 @@
         + '<th class="sticky-top">'+nom1+'</th>'
         + '<th class="sticky-top">'+nom2+'</th>'
         + '<th class="sticky-top">'+nom3+'</th>'
-        + '<th class="sticky-top">Balance</th>'
+        + '<th class="sticky-top">Bal</th>'
         + '</tr>'
         + '</thead>';
 
@@ -1452,28 +1565,17 @@
         const g = grupos[linea];
 
         const isSinLinea = (linea === "SIN LÍNEA");
-        const tL1 = isSinLinea ? {turnos_disponibles:null} : getLineaTurnos(linea,currentYear,m1);
-        const tL2 = isSinLinea ? {turnos_disponibles:null} : getLineaTurnos(linea,currentYear,m2);
-        const tL3 = isSinLinea ? {turnos_disponibles:null} : getLineaTurnos(linea,currentYear,m3);
+        const tL1 = isSinLinea ? {turnos_disponibles:null} : getLineaTurnos(linea,a1,m1);
+        const tL2 = isSinLinea ? {turnos_disponibles:null} : getLineaTurnos(linea,a2,m2);
+        const tL3 = isSinLinea ? {turnos_disponibles:null} : getLineaTurnos(linea,a3,m3);
 
         body += ''
           + '<tr class="line-header-row" data-linea="'+escapeHtml(linea)+'">'
           + '<td class="sticky-left line-header-cell codigo-col" style="text-align:left;"></td>'
           + '<td class="sticky-left-2 line-header-cell" style="text-align:left;">'+escapeHtml(linea)+'</td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
-          + '<td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td><td class="line-header-cell"></td><td class="line-header-cell"></td><td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td><td class="line-header-cell"></td><td class="line-header-cell"></td><td class="line-header-cell"></td>'
+          + '<td class="line-header-cell"></td><td class="line-header-cell"></td><td class="line-header-cell"></td><td class="line-header-cell"></td>'
           + '<td class="turnos-disponibles-cell">'
           + '    <input class="cell-input linea-turnos" data-mes="'+m1+'" value="'+(tL1.turnos_disponibles ?? "")+'" '+(isSinLinea?'readonly':'')+'>'
           + '</td>'
@@ -1487,9 +1589,9 @@
           + '</tr>';
 
         g.forEach(function(p){
-          const d1 = getDato(p.codigo,currentYear,m1);
-          const d2 = getDato(p.codigo,currentYear,m2);
-          const d3 = getDato(p.codigo,currentYear,m3);
+          const d1 = getDato(p.codigo,a1,m1);
+          const d2 = getDato(p.codigo,a2,m2);
+          const d3 = getDato(p.codigo,a3,m3);
 
           const isMarked = (state.skuMarcados || []).includes(p.codigo);
           const skuNota = findSkuNota(p.codigo);
@@ -1508,8 +1610,6 @@
             + '  </div>'
             + '</td>'
             + '<td class="sticky-left-2" style="text-align:left;">'+escapeHtml(p.descripcion)+'</td>'
-            + '<td>'+(p.kg_caja ?? "")+'</td>'
-            + '<td>'+(p.cjs_turno ?? "")+'</td>'
             + '<td><input class="cell-input plan-cell" data-field="presupuesto" data-mes="'+m1+'" value="'+(d1.presupuesto ?? "")+'"></td>'
             + '<td><input class="cell-input plan-cell" data-field="presupuesto" data-mes="'+m2+'" value="'+(d2.presupuesto ?? "")+'"></td>'
             + '<td><input class="cell-input plan-cell" data-field="presupuesto" data-mes="'+m3+'" value="'+(d3.presupuesto ?? "")+'"></td>'
@@ -1533,7 +1633,6 @@
           + '<tr class="line-subtotal-row" data-linea="'+escapeHtml(linea)+'">'
           + '<td class="sticky-left codigo-col" style="text-align:left;">Subtotal</td>'
           + '<td class="sticky-left-2" style="text-align:left;">'+escapeHtml(linea)+'</td>'
-          + '<td></td><td></td>'
           + '<td class="sub-ppto1 total-cell-empty"></td>'
           + '<td class="sub-ppto2 total-cell-empty"></td>'
           + '<td class="sub-ppto3 total-cell-empty"></td>'
@@ -1553,7 +1652,6 @@
       body += "</tbody>";
       tablaPlan.innerHTML = thead + body;
 
-      // ✅ calcula altura real de la fila 1 del thead para que la fila 2 no se pise
       requestAnimationFrame(() => {
         const tr1 = tablaPlan.querySelector("thead tr:first-child");
         if(tr1){
@@ -1577,33 +1675,47 @@
 
     function onPlanChangeHandler(e){
       const inp = e.target;
+
       if(inp.classList.contains("linea-turnos")){
         const tr = inp.closest("tr.line-header-row");
         if(!tr) return;
         const linea = tr.getAttribute("data-linea");
         const mes = Number(inp.getAttribute("data-mes"));
+        const anioDato = findYearForMes(mes);
+
         let val = inp.value;
         if(val==="") val=null; else val = Number(val);
-        const r = getLineaTurnos(linea,currentYear,mes);
+
+        const r = getLineaTurnos(linea, anioDato, mes);
         r.turnos_disponibles = val;
 
         autoFitInputFont(inp);
         recalcularTodo();
+        markDirtyAndQueueSave();
+
+        scheduleRenderReportes();
         return;
       }
+
       if(inp.classList.contains("plan-cell")){
         const tr = inp.closest("tr[data-codigo]");
         if(!tr) return;
         const codigo = tr.getAttribute("data-codigo");
         const field  = inp.getAttribute("data-field");
         const mes    = Number(inp.getAttribute("data-mes"));
+        const anioDato = findYearForMes(mes);
+
         let val = inp.value;
         if(val==="") val=null; else val = Number(val);
-        const d = getDato(codigo,currentYear,mes);
+
+        const d = getDato(codigo, anioDato, mes);
         d[field] = val;
 
         autoFitInputFont(inp);
         recalcularTodo();
+        markDirtyAndQueueSave();
+
+        scheduleRenderReportes();
       }
     }
 
@@ -1615,8 +1727,11 @@
         const idx = state.skuMarcados.indexOf(codigo);
         if(idx>=0) state.skuMarcados.splice(idx,1);
         else state.skuMarcados.push(codigo);
-        saveState();
+        markDirtyAndQueueSave();
         renderPlan();
+
+        reportesDirty = true;
+        scheduleRenderReportes();
         return;
       }
 
@@ -1624,9 +1739,10 @@
       if(btnNote){
         const codigo = btnNote.getAttribute("data-codigo");
         const nota = findSkuNota(codigo);
-        const actual = nota && nota.texto || "";
+        const actual = (nota && nota.texto) || "";
         const nuevo = prompt("Comentario para SKU "+codigo, actual);
         if(nuevo===null) return;
+
         if(!nuevo.trim()){
           if(nota){
             state.skuNotas = state.skuNotas.filter(function(n){return n.codigo!==codigo;});
@@ -1638,8 +1754,11 @@
             state.skuNotas.push({codigo:codigo, texto:nuevo.trim()});
           }
         }
-        saveState();
+        markDirtyAndQueueSave();
         renderPlan();
+
+        reportesDirty = true;
+        scheduleRenderReportes();
         return;
       }
     }
@@ -1660,16 +1779,20 @@
 
     function updateKpis(totalPpto,totalPlan,totalTurnos,totalTurnosDisp,totalStockM3){
       const cardT = document.getElementById("kpi-card-turnos");
-      const fmt0 = n => n ? n.toLocaleString("es-AR",{maximumFractionDigits:0}) : "0";
-      const fmt1 = n => n ? n.toLocaleString("es-AR",{maximumFractionDigits:1}) : "0.0";
+      const fmt0 = n => (n || n===0) ? n.toLocaleString("es-AR",{maximumFractionDigits:0}) : "0";
+      const fmt1 = n => (n || n===0) ? n.toLocaleString("es-AR",{maximumFractionDigits:1}) : "0.0";
 
       document.getElementById("kpi-pto").textContent = fmt0(totalPpto);
       document.getElementById("kpi-plan").textContent = fmt0(totalPlan);
       document.getElementById("kpi-stock").textContent = fmt0(totalStockM3);
 
+      const v = getVentana();
+      const last = v[2];
+      const lastLabel = MESES[last.mes] + " " + last.anio;
+
       document.getElementById("kpi-pto-sub").textContent = totalPpto ? "Total PTO 3 meses (cajas)" : "";
       document.getElementById("kpi-plan-sub").textContent = totalPlan ? "Total plan 3 meses (cajas)" : "";
-      document.getElementById("kpi-stock-sub").textContent = totalStockM3 ? ("Suma stock fin "+MESES[ventanaMeses[2]]) : "";
+      document.getElementById("kpi-stock-sub").textContent = (totalStockM3 || totalStockM3===0) ? ("Suma stock fin " + lastLabel) : "";
 
       cardT.classList.remove("ok","warn","danger");
       if(totalTurnosDisp<=0 && totalTurnos<=0){
@@ -1687,12 +1810,13 @@
     }
 
     function recalcularTodo(){
-      const m1=ventanaMeses[0],m2=ventanaMeses[1],m3=ventanaMeses[2];
+      const v = getVentana();
+      const v1 = v[0], v2 = v[1], v3 = v[2];
+      const m1 = v1.mes, m2 = v2.mes, m3 = v3.mes;
+      const a1 = v1.anio, a2 = v2.anio, a3 = v3.anio;
+
       const tbody = tablaPlan.querySelector("tbody");
-      if(!tbody){
-        renderReportes();
-        return;
-      }
+      if(!tbody) return;
 
       const acumLinea = {};
       let totalPpto=0,totalPlan=0,totalTurnos=0,totalTurnosDisp=0,totalStockM3=0;
@@ -1703,16 +1827,12 @@
         const prod   = (state.productos || []).find(function(p){return p.codigo===codigo;}) || {};
         const cjsTurno = prod.cjs_turno || 0;
 
-        const d1 = getDato(codigo,currentYear,m1);
-        const d2 = getDato(codigo,currentYear,m2);
-        const d3 = getDato(codigo,currentYear,m3);
+        const d1 = getDato(codigo,a1,m1);
+        const d2 = getDato(codigo,a2,m2);
+        const d3 = getDato(codigo,a3,m3);
 
         if(!acumLinea[linea]){
-          acumLinea[linea] = {
-            p1:0,p2:0,p3:0,
-            pl1:0,pl2:0,pl3:0,
-            t1:0,t2:0,t3:0
-          };
+          acumLinea[linea] = { p1:0,p2:0,p3:0, pl1:0,pl2:0,pl3:0, t1:0,t2:0,t3:0 };
         }
         const a = acumLinea[linea];
 
@@ -1805,9 +1925,11 @@
         const linea = hr.getAttribute("data-linea");
         const info = acumLinea[linea] || { t1:0,t2:0,t3:0 };
         const inputs = hr.querySelectorAll("input.linea-turnos");
+
         const disp1 = Number(inputs[0].value)||0;
         const disp2 = Number(inputs[1].value)||0;
         const disp3 = Number(inputs[2].value)||0;
+
         const totalDisp = disp1+disp2+disp3;
         const totalUsed = info.t1+info.t2+info.t3;
         const diff = totalDisp - totalUsed;
@@ -1820,11 +1942,11 @@
         if(totalDisp===0 && totalUsed===0){
           cellBalance.textContent = "";
         }else if(diff>=0){
-          cellBalance.textContent = "✅ OK · +"+diff.toFixed(2)+" turnos libres";
+          cellBalance.textContent = "✅ OK · +"+diff.toFixed(2)+" libres";
           cellBalance.classList.add("ok");
         }else{
           const falta = Math.abs(diff);
-          cellBalance.textContent = "⚠ Excedido · faltan "+falta.toFixed(2)+" turnos";
+          cellBalance.textContent = "⚠ Excedido · faltan "+falta.toFixed(2);
           cellBalance.classList.add("over");
         }
       });
@@ -1865,8 +1987,9 @@
       });
 
       updateKpis(totalPpto,totalPlan,totalTurnos,totalTurnosDisp,totalStockM3);
-      saveState();
-      renderReportes();
+
+      // ✅ performance fix: NO renderReportes() acá
+      reportesDirty = true;
     }
 
     function exportarExcel(){
@@ -1877,8 +2000,14 @@
         return;
       }
 
-      const m1 = ventanaMeses[0], m2 = ventanaMeses[1], m3 = ventanaMeses[2];
-      const nom1 = MESES[m1], nom2 = MESES[m2], nom3 = MESES[m3];
+      const v = getVentana();
+      const v1 = v[0], v2 = v[1], v3 = v[2];
+      const m1 = v1.mes, m2 = v2.mes, m3 = v3.mes;
+      const a1 = v1.anio, a2 = v2.anio, a3 = v3.anio;
+
+      const nom1 = MESES[m1] + " " + a1;
+      const nom2 = MESES[m2] + " " + a2;
+      const nom3 = MESES[m3] + " " + a3;
 
       const lineaFiltro = selLineaPlan.value || "";
       const q = (skuQuery || "").toLowerCase();
@@ -1904,7 +2033,7 @@
         .sort(function(a,b){
           const la = (a.linea || "").localeCompare(b.linea || "");
           if(la!==0) return la;
-          return compareCodigo(a.codigo, b.codigo); // ✅ orden numérico real
+          return compareCodigo(a.codigo, b.codigo);
         });
 
       if(productosFiltrados.length===0){
@@ -1916,9 +2045,9 @@
       productosFiltrados.forEach(function(p){
         const linea = (p.linea || "SIN LÍNEA").trim() || "SIN LÍNEA";
         if(!lineaAgg[linea]){
-          const tL1 = getLineaTurnos(linea,currentYear,m1);
-          const tL2 = getLineaTurnos(linea,currentYear,m2);
-          const tL3 = getLineaTurnos(linea,currentYear,m3);
+          const tL1 = getLineaTurnos(linea,a1,m1);
+          const tL2 = getLineaTurnos(linea,a2,m2);
+          const tL3 = getLineaTurnos(linea,a3,m3);
           lineaAgg[linea] = {
             t1:0,t2:0,t3:0,
             disp1: tL1.turnos_disponibles || 0,
@@ -1928,9 +2057,9 @@
         }
         const agg = lineaAgg[linea];
 
-        const d1 = getDato(p.codigo,currentYear,m1);
-        const d2 = getDato(p.codigo,currentYear,m2);
-        const d3 = getDato(p.codigo,currentYear,m3);
+        const d1 = getDato(p.codigo,a1,m1);
+        const d2 = getDato(p.codigo,a2,m2);
+        const d3 = getDato(p.codigo,a3,m3);
 
         const cjsTurno = p.cjs_turno || 0;
         if(cjsTurno>0){
@@ -1987,9 +2116,9 @@
         const linea = (p.linea || "SIN LÍNEA").trim() || "SIN LÍNEA";
         const agg = lineaAgg[linea];
 
-        const d1 = getDato(p.codigo,currentYear,m1);
-        const d2 = getDato(p.codigo,currentYear,m2);
-        const d3 = getDato(p.codigo,currentYear,m3);
+        const d1 = getDato(p.codigo,a1,m1);
+        const d2 = getDato(p.codigo,a2,m2);
+        const d3 = getDato(p.codigo,a3,m3);
 
         const ppto1 = d1.presupuesto || 0;
         const ppto2 = d2.presupuesto || 0;
@@ -2048,7 +2177,7 @@
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       XLSX.utils.book_append_sheet(wb, ws, "Plan_3M");
 
-      const filename = "plan_"+currentYear+"_"+m1+"-"+m3+".xlsx";
+      const filename = "plan_"+a1+"_"+m1+"-"+m3+".xlsx";
       XLSX.writeFile(wb, filename);
     }
 
@@ -2064,25 +2193,27 @@
         tablaReportes.innerHTML = '<thead><tr><th>⚠️ No hay productos cargados.</th></tr></thead>';
         return;
       }
-      const m1=ventanaMeses[0],m2=ventanaMeses[1],m3=ventanaMeses[2];
-      const nom1=MESES[m1],nom2=MESES[m2],nom3=MESES[m3];
+
+      const v = getVentana();
+      const v1 = v[0], v2 = v[1], v3 = v[2];
+      const m1 = v1.mes, m2 = v2.mes, m3 = v3.mes;
+      const a1 = v1.anio, a2 = v2.anio, a3 = v3.anio;
+
+      const nom1 = MESES[m1] + " " + a1;
+      const nom2 = MESES[m2] + " " + a2;
+      const nom3 = MESES[m3] + " " + a3;
 
       const grupos = {};
       (state.productos || []).forEach(function(p){
         const linea = (p.linea || "SIN LÍNEA").trim() || "SIN LÍNEA";
         const kgCaja = p.kg_caja || 0;
         if(!grupos[linea]){
-          grupos[linea] = {
-            ptoCjs:[0,0,0],
-            planCjs:[0,0,0],
-            ptoTn:[0,0,0],
-            planTn:[0,0,0]
-          };
+          grupos[linea] = { ptoCjs:[0,0,0], planCjs:[0,0,0], ptoTn:[0,0,0], planTn:[0,0,0] };
         }
         const g = grupos[linea];
-        const d1 = getDato(p.codigo,currentYear,m1);
-        const d2 = getDato(p.codigo,currentYear,m2);
-        const d3 = getDato(p.codigo,currentYear,m3);
+        const d1 = getDato(p.codigo,a1,m1);
+        const d2 = getDato(p.codigo,a2,m2);
+        const d3 = getDato(p.codigo,a3,m3);
         const pres = [d1.presupuesto||0,d2.presupuesto||0,d3.presupuesto||0];
         const plan = [d1.plan||0,d2.plan||0,d3.plan||0];
         for(var i=0;i<3;i++){
@@ -2245,14 +2376,20 @@
       tablaReportesAnual.innerHTML = thead + body;
     }
 
-    if(!document.getElementById("f-anio").value){
-      document.getElementById("f-anio").value = currentYear;
-    }
-
-    // ✅ init helpers
+    // ------------------ INIT ------------------ //
     renderLineasHelpers();
     renderLineas();
     renderProductos();
+
+    (function initVentanaDefault(){
+      const now = new Date();
+      currentYear = now.getFullYear();
+      const mes = now.getMonth()+1;
+      document.getElementById("f-anio").value = currentYear;
+      document.getElementById("f-mes-inicio").value = mes;
+      ventanaMeses = buildVentana3Meses(currentYear, mes);
+    })();
+
     renderPlan();
   </script>
 </body>
